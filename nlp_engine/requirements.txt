@@ -4,4 +4,5 @@ spacy>=3.7.0
 torch>=2.1.0
 transformers>=4.41.0
 sentencepiece>=0.2.0
+accelerate>=0.27.0
 kagglehub>=0.2.0

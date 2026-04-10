@@ -1,0 +1,14 @@
+/* Simplified text appears with a subtle blue highlight and underline.
+   Hovering shows the original text via the native browser tooltip (title attr). */
+.ara-simplified {
+  background-color: rgba(74, 127, 255, 0.10);
+  border-bottom: 1.5px solid rgba(74, 127, 255, 0.45);
+  border-radius: 2px;
+  cursor: help;
+  padding: 0 1px;
+  transition: background-color 0.15s ease;
+}
+
+.ara-simplified:hover {
+  background-color: rgba(74, 127, 255, 0.22);
+}

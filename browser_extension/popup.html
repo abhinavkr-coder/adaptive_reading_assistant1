@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Adaptive Reader</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      width: 220px;
+      padding: 16px;
+      margin: 0;
+      background: #f8f9ff;
+      color: #222;
+    }
+    h2 { font-size: 14px; margin: 0 0 14px; color: #1a1a3e; }
+    label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
+    select {
+      width: 100%; padding: 6px 8px; border: 1px solid #ccc;
+      border-radius: 6px; font-size: 13px; margin-bottom: 12px; background: #fff;
+    }
+    button {
+      width: 100%; padding: 9px; background: #4a7fff; color: #fff;
+      border: none; border-radius: 6px; font-size: 13px;
+      font-weight: 600; cursor: pointer;
+    }
+    button:hover { background: #2f5ee8; }
+    button:disabled { background: #aac0ff; cursor: default; }
+    #status { font-size: 11px; color: #777; margin-top: 9px; text-align: center; min-height: 14px; }
+  </style>
+</head>
+<body>
+  <h2>📖 Adaptive Reader</h2>
+  <label for="level">Your reading level</label>
+  <select id="level">
+    <option value="beginner">Beginner</option>
+    <option value="intermediate" selected>Intermediate</option>
+    <option value="advanced">Advanced</option>
+  </select>
+  <button id="btn">Simplify This Page</button>
+  <div id="status"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

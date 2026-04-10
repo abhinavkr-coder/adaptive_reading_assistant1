@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Adaptive Reading Assistant",
+  "version": "1.0",
+  "description": "Simplifies hard vocabulary inline, based on your reading level.",
+  "permissions": ["activeTab", "storage", "scripting"],
+  "host_permissions": ["http://localhost:5000/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Adaptive Reader"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}

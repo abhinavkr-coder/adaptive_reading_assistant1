@@ -1,10 +1,15 @@
+# ============================================================
+# STEP 1 — Install PyTorch with CUDA 12.6 support FIRST:
+#   pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu126
+#
+# STEP 2 — Then install everything else:
+#   pip install -r requirements.txt
+# ============================================================
+
 flask>=3.0.0
 flask-cors>=4.0.0
 spacy>=3.7.0
-torch>=2.1.0
 transformers>=4.41.0
 sentencepiece>=0.2.0
 accelerate>=0.27.0
 kagglehub>=0.2.0
-nltk>=3.8.0
-torchtext>=0.16.0

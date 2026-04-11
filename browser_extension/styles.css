@@ -1,22 +1,53 @@
-/*
-  Replaced words get a soft blue underline — visually similar to a
-  dictionary link, which users intuitively understand as "this word
-  has been changed / has more information."
-  Hovering shows the original word via the native browser tooltip.
-*/
-.ara-word {
-    background-color: rgba(74, 127, 255, 0.10);
-    border-bottom: 1.5px dotted rgba(74, 127, 255, 0.60);
-    border-radius: 2px;
-    cursor: help;
-    padding: 0 1px;
-    transition: background-color 0.15s ease;
-    /* Prevent the span from disrupting line-height */
-    display: inline;
-    line-height: inherit;
+/* ── Adaptive Reading Assistant — page-injected styles ──────────────────────
+ *
+ * .ara-modified  marks every paragraph that was rewritten by the AI.
+ *   • A subtle left border and low-opacity tint signal the change without
+ *     being aggressive or distracting.
+ *   • Hovering darkens the tint and reveals the original text via the
+ *     browser's native tooltip (set with the `title` attribute in content.js).
+ *   • The transition keeps the highlight feel smooth if the user mouses over
+ *     many paragraphs in quick succession.
+ *
+ * We deliberately avoid heavy styling (borders, backgrounds, font changes)
+ * because adaptive reading should feel invisible — the reader should be
+ * focusing on the content, not the tool.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+.ara-modified {
+  border-left: 2.5px solid rgba(59, 130, 246, 0.55);
+  padding-left: 8px !important;
+  background-color: rgba(59, 130, 246, 0.04);
+  border-radius: 0 4px 4px 0;
+  cursor: help;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.ara-word:hover {
-    background-color: rgba(74, 127, 255, 0.22);
-    border-bottom-style: solid;
+.ara-modified:hover {
+  background-color: rgba(59, 130, 246, 0.10);
+  border-left-color: rgba(59, 130, 246, 0.85);
+}
+
+/* Headings that were simplified get a slightly different treatment —
+   the left-border would look odd on a large h1, so we use a bottom
+   underline instead. */
+h1.ara-modified,
+h2.ara-modified,
+h3.ara-modified,
+h4.ara-modified,
+h5.ara-modified,
+h6.ara-modified {
+  border-left: none;
+  padding-left: 0 !important;
+  border-bottom: 2px solid rgba(59, 130, 246, 0.40);
+  border-radius: 0;
+  padding-bottom: 2px;
+}
+
+h1.ara-modified:hover,
+h2.ara-modified:hover,
+h3.ara-modified:hover,
+h4.ara-modified:hover,
+h5.ara-modified:hover,
+h6.ara-modified:hover {
+  border-bottom-color: rgba(59, 130, 246, 0.80);
 }

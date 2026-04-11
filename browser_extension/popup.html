@@ -4,40 +4,292 @@
   <meta charset="UTF-8" />
   <title>Adaptive Reader</title>
   <style>
+    /* ── Reset & base ────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      font-family: system-ui, -apple-system, sans-serif;
-      width: 220px;
-      padding: 16px;
-      margin: 0;
-      background: #f8f9ff;
-      color: #222;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      width: 320px;
+      background: #0f1117;
+      color: #e2e8f0;
+      overflow: hidden;
+      user-select: none;
     }
-    h2 { font-size: 14px; margin: 0 0 14px; color: #1a1a3e; }
-    label { font-size: 12px; color: #555; display: block; margin-bottom: 4px; }
-    select {
-      width: 100%; padding: 6px 8px; border: 1px solid #ccc;
-      border-radius: 6px; font-size: 13px; margin-bottom: 12px; background: #fff;
+
+    /* ── Header ──────────────────────────────────────────────────────────── */
+    .header {
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f2040 100%);
+      padding: 18px 20px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
-    button {
-      width: 100%; padding: 9px; background: #4a7fff; color: #fff;
-      border: none; border-radius: 6px; font-size: 13px;
-      font-weight: 600; cursor: pointer;
+    .header-logo {
+      font-size: 28px;
+      line-height: 1;
+      filter: drop-shadow(0 2px 6px rgba(96,165,250,0.5));
     }
-    button:hover { background: #2f5ee8; }
-    button:disabled { background: #aac0ff; cursor: default; }
-    #status { font-size: 11px; color: #777; margin-top: 9px; text-align: center; min-height: 14px; }
+    .header-text { flex: 1; }
+    .header-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: #e2e8f0;
+      letter-spacing: 0.02em;
+    }
+    .header-subtitle {
+      font-size: 11px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e;
+      flex-shrink: 0;
+    }
+    .status-dot.offline { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+    .status-dot.loading { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; animation: pulse 1.2s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    /* ── Body ────────────────────────────────────────────────────────────── */
+    .body { padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    /* ── Level selector ──────────────────────────────────────────────────── */
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #475569;
+      margin-bottom: 8px;
+    }
+
+    .level-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .level-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      padding: 10px 6px;
+      background: #1e2535;
+      border: 1.5px solid #2a3347;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.18s ease;
+    }
+    .level-card:hover { background: #243050; border-color: #3b4f73; }
+    .level-card.selected {
+      background: rgba(59,130,246,0.15);
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+    }
+    .level-card input[type="radio"] { display: none; }
+    .level-icon { font-size: 20px; line-height: 1; }
+    .level-name {
+      font-size: 11px;
+      font-weight: 600;
+      color: #cbd5e1;
+    }
+    .level-desc { font-size: 9px; color: #475569; text-align: center; }
+    .level-card.selected .level-name { color: #93c5fd; }
+
+    /* ── Progress area ───────────────────────────────────────────────────── */
+    .progress-wrap {
+      background: #1a2236;
+      border: 1px solid #2a3347;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .progress-label { font-size: 11px; color: #94a3b8; }
+    .progress-pct   { font-size: 13px; font-weight: 700; color: #60a5fa; }
+
+    .progress-track {
+      height: 6px;
+      background: #2a3347;
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      border-radius: 99px;
+      background: linear-gradient(90deg, #3b82f6, #60a5fa);
+      transition: width 0.4s ease;
+      width: 0%;
+    }
+    .progress-fill.done { background: linear-gradient(90deg, #10b981, #34d399); }
+
+    .status-msg {
+      font-size: 10.5px;
+      color: #64748b;
+      margin-top: 7px;
+      min-height: 14px;
+      line-height: 1.4;
+    }
+    .status-msg.success { color: #4ade80; }
+    .status-msg.error   { color: #f87171; }
+
+    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    .btn {
+      width: 100%;
+      padding: 11px 16px;
+      border: none;
+      border-radius: 9px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: all 0.18s ease;
+      letter-spacing: 0.01em;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      color: #fff;
+      box-shadow: 0 2px 12px rgba(37,99,235,0.35);
+    }
+    .btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #1d4ed8, #2563eb);
+      box-shadow: 0 4px 16px rgba(37,99,235,0.5);
+      transform: translateY(-1px);
+    }
+    .btn-primary:disabled {
+      background: linear-gradient(135deg, #1e3a6e, #2a4d8a);
+      color: #64748b;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .btn-secondary {
+      background: #1e2535;
+      color: #94a3b8;
+      border: 1.5px solid #2a3347;
+    }
+    .btn-secondary:hover:not(:disabled) {
+      background: #243050;
+      color: #cbd5e1;
+      border-color: #3b4f73;
+    }
+    .btn-secondary:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .btn-icon { font-size: 15px; }
+
+    /* ── Spinner inside button ───────────────────────────────────────────── */
+    .spinner {
+      width: 14px; height: 14px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Footer ──────────────────────────────────────────────────────────── */
+    .footer {
+      padding: 10px 20px;
+      border-top: 1px solid #1a2236;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .server-info { font-size: 10px; color: #334155; }
+    .server-info span { color: #475569; }
   </style>
 </head>
 <body>
-  <h2>📖 Adaptive Reader</h2>
-  <label for="level">Your reading level</label>
-  <select id="level">
-    <option value="beginner">Beginner</option>
-    <option value="intermediate" selected>Intermediate</option>
-    <option value="advanced">Advanced</option>
-  </select>
-  <button id="btn">Simplify This Page</button>
-  <div id="status"></div>
+
+  <!-- ── Header ── -->
+  <div class="header">
+    <div class="header-logo">📖</div>
+    <div class="header-text">
+      <div class="header-title">Adaptive Reader</div>
+      <div class="header-subtitle">AI-powered text simplification</div>
+    </div>
+    <div class="status-dot loading" id="dotEl" title="Checking server…"></div>
+  </div>
+
+  <!-- ── Body ── -->
+  <div class="body">
+
+    <!-- Reading level selector -->
+    <div>
+      <div class="section-label">Reading Level</div>
+      <div class="level-cards" id="levelCards">
+        <label class="level-card" data-level="beginner">
+          <input type="radio" name="level" value="beginner" />
+          <div class="level-icon">🌱</div>
+          <div class="level-name">Beginner</div>
+          <div class="level-desc">Simple words &amp; short sentences</div>
+        </label>
+        <label class="level-card" data-level="intermediate">
+          <input type="radio" name="level" value="intermediate" />
+          <div class="level-icon">📚</div>
+          <div class="level-name">Intermediate</div>
+          <div class="level-desc">Clear &amp; readable</div>
+        </label>
+        <label class="level-card" data-level="advanced">
+          <input type="radio" name="level" value="advanced" />
+          <div class="level-icon">🎓</div>
+          <div class="level-name">Advanced</div>
+          <div class="level-desc">Flow improvements only</div>
+        </label>
+      </div>
+    </div>
+
+    <!-- Progress display -->
+    <div class="progress-wrap">
+      <div class="progress-header">
+        <span class="progress-label" id="progressLabel">Ready</span>
+        <span class="progress-pct"   id="progressPct">—</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <div class="status-msg" id="statusMsg">Choose a level and click Simplify.</div>
+    </div>
+
+    <!-- Action buttons -->
+    <button class="btn btn-primary" id="btnSimplify">
+      <span class="btn-icon">✨</span>
+      <span id="btnSimplifyText">Simplify This Page</span>
+    </button>
+
+    <button class="btn btn-secondary" id="btnUndo" disabled>
+      <span class="btn-icon">↩</span> Restore Original
+    </button>
+
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="footer">
+    <div class="server-info">Server: <span>localhost:5000</span></div>
+    <div class="server-info" id="modelLabel">Model: checking…</div>
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>

@@ -1,182 +1,216 @@
 /**
- * content.js — Adaptive Reading Assistant (word-level replacement)
+ * content.js — Adaptive Reading Assistant
  *
- * Flow:
- *  1. Collect all readable text nodes on the page.
- *  2. For each node, split its text into sentences via /split.
- *  3. Send sentences to /simplify — the API returns per-sentence
- *     replacement arrays with {original, replacement, start, end}
- *     where start/end are character offsets inside that sentence.
- *  4. Convert those sentence-relative offsets to offsets inside the
- *     full text-node string.
- *  5. Rebuild the text node as a document fragment: plain text for
- *     unchanged characters, <span class="ara-word"> for swapped words.
- *     Hovering a span shows the original word as a tooltip.
+ * ARCHITECTURE: PARAGRAPH-LEVEL REWRITING
+ * ─────────────────────────────────────────
+ * Previous approach: walk all text nodes, split into sentences, simplify one-by-one.
+ * Problem: the model loses all context. "She met him there" has no referents.
+ *
+ * New approach:
+ *  1. Collect block-level elements (p, h1-h6, li, td, blockquote, etc.)
+ *  2. Extract the full text of each block as the unit of simplification.
+ *  3. Send batches of 3 paragraphs to POST /rewrite.
+ *  4. Replace block's innerHTML with the rewritten text, preserving a data-
+ *     attribute copy of the original for hover/undo.
+ *  5. Report progress (0–100%) to chrome.storage.local so the popup
+ *     shows a live percentage even if it was closed and reopened.
+ *
+ * UNDO: Stores original innerHTML. The "Restore" button in the popup
+ *       sends an "undo" message that this script handles.
  */
 
-const API       = "http://localhost:5000";
-const DONE_ATTR = "data-ara-done";
-const WORD_CLS  = "ara-word";
+const API          = "http://localhost:5000";
+const DONE_ATTR    = "data-ara-done";
+const ORIGINAL_KEY = "data-ara-original";
 
-// ── DOM helpers ──────────────────────────────────────────────────────────────
+// Block elements whose full text content constitutes a meaningful paragraph.
+// We avoid inline tags (span, a, em) because they rarely stand alone.
+const BLOCK_SELECTOR = [
+  "p", "h1", "h2", "h3", "h4", "h5", "h6",
+  "li", "td", "th", "blockquote", "figcaption",
+  "summary", "dt", "dd", "article", "section > div",
+].join(", ");
 
-function collectTextNodes(root = document.body) {
-    const SKIP = new Set([
-        "SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA",
-        "INPUT", "CODE", "PRE", "SELECT",
-    ]);
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-        acceptNode(node) {
-            const p = node.parentElement;
-            if (!p) return NodeFilter.FILTER_REJECT;
-            if (SKIP.has(p.tagName?.toUpperCase())) return NodeFilter.FILTER_REJECT;
-            if (p.closest(`[${DONE_ATTR}]`)) return NodeFilter.FILTER_REJECT;
-            if (!node.nodeValue?.trim()) return NodeFilter.FILTER_REJECT;
-            return NodeFilter.FILTER_ACCEPT;
-        },
-    });
-    const nodes = [];
-    let n;
-    while ((n = walker.nextNode())) nodes.push(n);
-    return nodes;
+// Elements that should never be rewritten
+const SKIP_ANCESTORS = new Set([
+  "SCRIPT", "STYLE", "NOSCRIPT", "CODE", "PRE",
+  "TEXTAREA", "INPUT", "SELECT", "IFRAME",
+]);
+
+// ── DOM helpers ───────────────────────────────────────────────────────────────
+
+function isSkippable(el) {
+  // Already processed in this run
+  if (el.hasAttribute(DONE_ATTR)) return true;
+
+  // Inside a no-rewrite ancestor
+  let node = el;
+  while (node) {
+    if (SKIP_ANCESTORS.has(node.tagName?.toUpperCase())) return true;
+    node = node.parentElement;
+  }
+
+  // Too short to be a real paragraph (labels, bylines, nav items)
+  const text = (el.innerText || el.textContent || "").trim();
+  if (text.length < 40) return true;
+
+  // Mostly a navigation element (>60% of text inside <a> tags)
+  const linkText = Array.from(el.querySelectorAll("a"))
+    .map(a => a.innerText || "").join("").length;
+  if (text.length > 0 && linkText / text.length > 0.6) return true;
+
+  return false;
 }
 
-// ── API calls ─────────────────────────────────────────────────────────────────
-
-async function splitText(text) {
-    const r = await fetch(`${API}/split`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
-    });
-    return (await r.json()).sentences ?? [text];
+function collectBlocks() {
+  return Array.from(document.querySelectorAll(BLOCK_SELECTOR))
+    .filter(el => !isSkippable(el));
 }
 
-async function simplifySentences(sentences, userLevel) {
-    const r = await fetch(`${API}/simplify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sentences, user_level: userLevel }),
-    });
-    return (await r.json()).results ?? [];
+// ── API helpers ───────────────────────────────────────────────────────────────
+
+async function rewriteBatch(paragraphs, userLevel) {
+  const res = await fetch(`${API}/rewrite`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ paragraphs, user_level: userLevel }),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return (await res.json()).results ?? [];
 }
 
-// ── Fragment builder ─────────────────────────────────────────────────────────
+// ── DOM replacement ───────────────────────────────────────────────────────────
 
-/**
- * Given the raw text-node string and the array of sentence results,
- * builds a DocumentFragment that is identical to the original text
- * except that each replaced word is wrapped in a highlighted span.
- *
- * Strategy:
- *   - Find each sentence inside `fullText` sequentially (left-to-right)
- *     using indexOf with a running cursor so we handle repeated sentences.
- *   - Convert sentence-relative {start, end} to absolute positions in fullText.
- *   - Walk fullText character-by-character, emitting plain TextNodes for
- *     unchanged runs and <span> elements for replaced words.
- */
-function buildFragment(fullText, results) {
-    // Collect all replacements with absolute positions in fullText
-    const absReplacements = [];
-    let cursor = 0;
+function applyRewrite(el, result) {
+  if (!result.changed) {
+    // Mark processed but don't touch content
+    el.setAttribute(DONE_ATTR, "true");
+    return;
+  }
 
-    for (const result of results) {
-        if (!result.changed || !result.replacements?.length) {
-            // Advance cursor past this sentence even if unchanged
-            const idx = fullText.indexOf(result.original, cursor);
-            if (idx !== -1) cursor = idx + result.original.length;
-            continue;
-        }
+  // Preserve original HTML for undo and hover tooltip
+  el.setAttribute(ORIGINAL_KEY, el.innerHTML);
 
-        const sentenceStart = fullText.indexOf(result.original, cursor);
-        if (sentenceStart === -1) continue;  // safety — sentence not found
+  // Replace visible content with simplified text.
+  // We set textContent (not innerHTML) to avoid XSS from model output,
+  // but preserve block-level structure via the parent element staying intact.
+  el.textContent = result.rewritten;
+  el.setAttribute(DONE_ATTR, "true");
+  el.classList.add("ara-modified");
 
-        for (const rep of result.replacements) {
-            absReplacements.push({
-                start:       sentenceStart + rep.start,
-                end:         sentenceStart + rep.end,
-                original:    rep.original,
-                replacement: rep.replacement,
-            });
-        }
-        cursor = sentenceStart + result.original.length;
-    }
-
-    // Sort by start position so we can walk left-to-right
-    absReplacements.sort((a, b) => a.start - b.start);
-
-    // Build the fragment
-    const fragment = document.createDocumentFragment();
-    let pos = 0;
-
-    for (const rep of absReplacements) {
-        if (rep.start < pos) continue;  // overlapping — skip (shouldn't happen)
-
-        // Plain text before this replacement
-        if (rep.start > pos) {
-            fragment.appendChild(
-                document.createTextNode(fullText.slice(pos, rep.start))
-            );
-        }
-
-        // The replaced word wrapped in a span
-        const span = document.createElement("span");
-        span.className   = WORD_CLS;
-        span.textContent = rep.replacement;
-        span.title       = `Original: "${rep.original}"`;
-        span.setAttribute("data-original", rep.original);
-        fragment.appendChild(span);
-
-        pos = rep.end;
-    }
-
-    // Any remaining plain text after the last replacement
-    if (pos < fullText.length) {
-        fragment.appendChild(document.createTextNode(fullText.slice(pos)));
-    }
-
-    return fragment;
+  // Truncated original for the browser tooltip
+  const preview = result.original.length > 160
+    ? result.original.slice(0, 157) + "…"
+    : result.original;
+  el.title = `Original: ${preview}`;
 }
 
-// ── Main processing ───────────────────────────────────────────────────────────
+// ── Progress reporting ────────────────────────────────────────────────────────
 
-async function processNode(node, userLevel) {
-    const rawText = node.nodeValue ?? "";
-    if (rawText.trim().length < 20) return;  // skip captions, labels etc.
-
-    const parent = node.parentElement;
-    if (!parent || parent.hasAttribute(DONE_ATTR)) return;
-
-    const sentences = await splitText(rawText);
-    const results   = await simplifySentences(sentences, userLevel);
-
-    const anyChanged = results.some(r => r.changed);
-    if (!anyChanged) return;  // nothing to do — leave DOM untouched
-
-    const fragment = buildFragment(rawText, results);
-    parent.setAttribute(DONE_ATTR, "true");
-    node.replaceWith(fragment);
+function reportProgress(done, total, extra = {}) {
+  const pct = total === 0 ? 100 : Math.min(100, Math.round((done / total) * 100));
+  chrome.storage.local.set({
+    araProgress: pct,
+    araTotal:    total,
+    araDone:     done,
+    ...extra,
+  });
 }
+
+// ── Main simplification flow ──────────────────────────────────────────────────
 
 async function runSimplification(userLevel) {
-    const nodes = collectTextNodes();
-    const CONCURRENCY = 3;  // process 3 text nodes in parallel
+  const blocks = collectBlocks();
+  const total  = blocks.length;
 
-    for (let i = 0; i < nodes.length; i += CONCURRENCY) {
-        await Promise.all(
-            nodes.slice(i, i + CONCURRENCY).map(n =>
-                processNode(n, userLevel).catch(() => {})  // never crash the page
-            )
-        );
+  if (total === 0) {
+    chrome.storage.local.set({
+      araRunning:  false,
+      araProgress: 100,
+      araStatus:   "No paragraphs found to simplify on this page.",
+    });
+    return;
+  }
+
+  reportProgress(0, total, {
+    araRunning: true,
+    araStatus:  `Simplifying… 0 of ${total} paragraphs`,
+    araLevel:   userLevel,
+  });
+
+  const BATCH_SIZE = 3;  // 3 paragraphs per API call balances throughput vs latency
+  let processed = 0;
+
+  for (let i = 0; i < blocks.length; i += BATCH_SIZE) {
+    const batch   = blocks.slice(i, i + BATCH_SIZE);
+    const texts   = batch.map(el => (el.innerText || el.textContent || "").trim());
+
+    try {
+      const results = await rewriteBatch(texts, userLevel);
+      results.forEach((result, j) => applyRewrite(batch[j], result));
+    } catch (err) {
+      // Fail gracefully: mark as done (no retry), keep original text visible
+      console.warn("[ARA] Batch error:", err.message);
+      batch.forEach(el => el.setAttribute(DONE_ATTR, "true"));
     }
+
+    processed += batch.length;
+    reportProgress(processed, total, {
+      araRunning: processed < total,
+      araStatus:  processed < total
+        ? `Simplifying… ${processed} of ${total} paragraphs`
+        : `Done — ${total} paragraphs rewritten. Hover to see originals.`,
+    });
+  }
+
+  // Final state: simplification complete
+  chrome.storage.local.set({
+    araRunning:  false,
+    araProgress: 100,
+    araStatus:   `Done — ${total} paragraphs rewritten. Hover to see originals.`,
+    araHasDone:  true,
+  });
 }
 
-// Listen for the popup's "Simplify" button
-chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-    if (msg.action === "simplify") {
-        runSimplification(msg.userLevel)
-            .then(() => reply({ status: "done" }))
-            .catch(e => reply({ status: "error", error: e.message }));
-        return true;  // keep message channel open for async reply
+// ── Undo (restore all original HTML) ─────────────────────────────────────────
+
+function undoSimplification() {
+  let restored = 0;
+  document.querySelectorAll(`[${DONE_ATTR}]`).forEach(el => {
+    const original = el.getAttribute(ORIGINAL_KEY);
+    if (original !== null) {
+      el.innerHTML = original;
+      el.removeAttribute(ORIGINAL_KEY);
+      el.classList.remove("ara-modified");
+      el.removeAttribute("title");
+      restored++;
     }
+    el.removeAttribute(DONE_ATTR);
+  });
+
+  chrome.storage.local.set({
+    araRunning:  false,
+    araProgress: 0,
+    araStatus:   `Restored — ${restored} paragraphs reverted to original.`,
+    araHasDone:  false,
+    araDone:     0,
+    araTotal:    0,
+  });
+}
+
+// ── Message listener ──────────────────────────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+  if (msg.action === "simplify") {
+    runSimplification(msg.userLevel)
+      .then(()  => reply({ status: "done" }))
+      .catch(e  => reply({ status: "error", error: e.message }));
+    return true; // keep port open for async reply
+  }
+
+  if (msg.action === "undo") {
+    undoSimplification();
+    reply({ status: "done" });
+    return true;
+  }
 });

@@ -1,123 +1,182 @@
 /**
- * content.js — Adaptive Reading Assistant
+ * content.js — Adaptive Reading Assistant (word-level replacement)
  *
- * Mirrors how Google Translate replaces page text in-place:
- *  1. Walk the DOM and collect all readable text nodes.
- *  2. Split each node's text into sentences via the NLP API.
- *  3. Simplify sentences flagged as complex.
- *  4. Replace the original text node with the simplified version,
- *     wrapping changed sentences in highlighted spans.
- *     Hovering a span reveals the original text as a tooltip.
+ * Flow:
+ *  1. Collect all readable text nodes on the page.
+ *  2. For each node, split its text into sentences via /split.
+ *  3. Send sentences to /simplify — the API returns per-sentence
+ *     replacement arrays with {original, replacement, start, end}
+ *     where start/end are character offsets inside that sentence.
+ *  4. Convert those sentence-relative offsets to offsets inside the
+ *     full text-node string.
+ *  5. Rebuild the text node as a document fragment: plain text for
+ *     unchanged characters, <span class="ara-word"> for swapped words.
+ *     Hovering a span shows the original word as a tooltip.
  */
 
-const API = "http://localhost:5000";
-const DONE_ATTR = "data-ara-done";   // marks already-processed parent elements
-const SPAN_CLASS = "ara-simplified";
+const API       = "http://localhost:5000";
+const DONE_ATTR = "data-ara-done";
+const WORD_CLS  = "ara-word";
 
-// ── DOM traversal ────────────────────────────────────────────────────────────
+// ── DOM helpers ──────────────────────────────────────────────────────────────
 
 function collectTextNodes(root = document.body) {
-  const SKIP_TAGS = new Set([
-    "SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA",
-    "INPUT", "CODE", "PRE", "SELECT",
-  ]);
-
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      const p = node.parentElement;
-      if (!p) return NodeFilter.FILTER_REJECT;
-      if (SKIP_TAGS.has(p.tagName?.toUpperCase())) return NodeFilter.FILTER_REJECT;
-      if (p.hasAttribute(DONE_ATTR)) return NodeFilter.FILTER_REJECT;
-      if (!node.nodeValue?.trim()) return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
-    },
-  });
-
-  const nodes = [];
-  let n;
-  while ((n = walker.nextNode())) nodes.push(n);
-  return nodes;
+    const SKIP = new Set([
+        "SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA",
+        "INPUT", "CODE", "PRE", "SELECT",
+    ]);
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            const p = node.parentElement;
+            if (!p) return NodeFilter.FILTER_REJECT;
+            if (SKIP.has(p.tagName?.toUpperCase())) return NodeFilter.FILTER_REJECT;
+            if (p.closest(`[${DONE_ATTR}]`)) return NodeFilter.FILTER_REJECT;
+            if (!node.nodeValue?.trim()) return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+        },
+    });
+    const nodes = [];
+    let n;
+    while ((n = walker.nextNode())) nodes.push(n);
+    return nodes;
 }
 
-// ── API helpers ──────────────────────────────────────────────────────────────
+// ── API calls ─────────────────────────────────────────────────────────────────
 
 async function splitText(text) {
-  const r = await fetch(`${API}/split`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ text }),
-  });
-  return (await r.json()).sentences ?? [text];
+    const r = await fetch(`${API}/split`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+    });
+    return (await r.json()).sentences ?? [text];
 }
 
-async function simplifyBatch(sentences, userLevel) {
-  const r = await fetch(`${API}/simplify`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sentences, user_level: userLevel }),
-  });
-  return (await r.json()).results ?? [];
+async function simplifySentences(sentences, userLevel) {
+    const r = await fetch(`${API}/simplify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sentences, user_level: userLevel }),
+    });
+    return (await r.json()).results ?? [];
 }
 
-// ── In-place DOM replacement ─────────────────────────────────────────────────
+// ── Fragment builder ─────────────────────────────────────────────────────────
 
-function applyResults(textNode, results) {
-  const parent = textNode.parentElement;
-  if (!parent || parent.hasAttribute(DONE_ATTR)) return;
+/**
+ * Given the raw text-node string and the array of sentence results,
+ * builds a DocumentFragment that is identical to the original text
+ * except that each replaced word is wrapped in a highlighted span.
+ *
+ * Strategy:
+ *   - Find each sentence inside `fullText` sequentially (left-to-right)
+ *     using indexOf with a running cursor so we handle repeated sentences.
+ *   - Convert sentence-relative {start, end} to absolute positions in fullText.
+ *   - Walk fullText character-by-character, emitting plain TextNodes for
+ *     unchanged runs and <span> elements for replaced words.
+ */
+function buildFragment(fullText, results) {
+    // Collect all replacements with absolute positions in fullText
+    const absReplacements = [];
+    let cursor = 0;
 
-  const fragment = document.createDocumentFragment();
+    for (const result of results) {
+        if (!result.changed || !result.replacements?.length) {
+            // Advance cursor past this sentence even if unchanged
+            const idx = fullText.indexOf(result.original, cursor);
+            if (idx !== -1) cursor = idx + result.original.length;
+            continue;
+        }
 
-  for (const result of results) {
-    if (!result.changed) {
-      // Unchanged sentence: keep as a plain text node
-      fragment.appendChild(document.createTextNode(result.original + " "));
-    } else {
-      // Changed sentence: highlighted span with original text on hover
-      const span = document.createElement("span");
-      span.className = SPAN_CLASS;
-      span.textContent = result.simplified;
-      span.title = `Original: ${result.original}`;
-      span.setAttribute("data-original", result.original);
-      fragment.appendChild(span);
-      fragment.appendChild(document.createTextNode(" "));
+        const sentenceStart = fullText.indexOf(result.original, cursor);
+        if (sentenceStart === -1) continue;  // safety — sentence not found
+
+        for (const rep of result.replacements) {
+            absReplacements.push({
+                start:       sentenceStart + rep.start,
+                end:         sentenceStart + rep.end,
+                original:    rep.original,
+                replacement: rep.replacement,
+            });
+        }
+        cursor = sentenceStart + result.original.length;
     }
-  }
 
-  // Mark the parent so we don't process it again on re-trigger
-  parent.setAttribute(DONE_ATTR, "true");
-  textNode.replaceWith(fragment);
+    // Sort by start position so we can walk left-to-right
+    absReplacements.sort((a, b) => a.start - b.start);
+
+    // Build the fragment
+    const fragment = document.createDocumentFragment();
+    let pos = 0;
+
+    for (const rep of absReplacements) {
+        if (rep.start < pos) continue;  // overlapping — skip (shouldn't happen)
+
+        // Plain text before this replacement
+        if (rep.start > pos) {
+            fragment.appendChild(
+                document.createTextNode(fullText.slice(pos, rep.start))
+            );
+        }
+
+        // The replaced word wrapped in a span
+        const span = document.createElement("span");
+        span.className   = WORD_CLS;
+        span.textContent = rep.replacement;
+        span.title       = `Original: "${rep.original}"`;
+        span.setAttribute("data-original", rep.original);
+        fragment.appendChild(span);
+
+        pos = rep.end;
+    }
+
+    // Any remaining plain text after the last replacement
+    if (pos < fullText.length) {
+        fragment.appendChild(document.createTextNode(fullText.slice(pos)));
+    }
+
+    return fragment;
 }
 
-// ── Main ─────────────────────────────────────────────────────────────────────
+// ── Main processing ───────────────────────────────────────────────────────────
+
+async function processNode(node, userLevel) {
+    const rawText = node.nodeValue ?? "";
+    if (rawText.trim().length < 20) return;  // skip captions, labels etc.
+
+    const parent = node.parentElement;
+    if (!parent || parent.hasAttribute(DONE_ATTR)) return;
+
+    const sentences = await splitText(rawText);
+    const results   = await simplifySentences(sentences, userLevel);
+
+    const anyChanged = results.some(r => r.changed);
+    if (!anyChanged) return;  // nothing to do — leave DOM untouched
+
+    const fragment = buildFragment(rawText, results);
+    parent.setAttribute(DONE_ATTR, "true");
+    node.replaceWith(fragment);
+}
 
 async function runSimplification(userLevel) {
-  const nodes = collectTextNodes();
-  const BATCH = 4; // Process 4 nodes concurrently to keep the API responsive
+    const nodes = collectTextNodes();
+    const CONCURRENCY = 3;  // process 3 text nodes in parallel
 
-  for (let i = 0; i < nodes.length; i += BATCH) {
-    await Promise.all(
-      nodes.slice(i, i + BATCH).map(async (node) => {
-        const text = node.nodeValue?.trim() ?? "";
-        if (text.length < 25) return; // Skip captions, labels, etc.
-
-        try {
-          const sentences = await splitText(text);
-          const results   = await simplifyBatch(sentences, userLevel);
-          applyResults(node, results);
-        } catch {
-          // API unreachable — fail silently so the page stays usable
-        }
-      })
-    );
-  }
+    for (let i = 0; i < nodes.length; i += CONCURRENCY) {
+        await Promise.all(
+            nodes.slice(i, i + CONCURRENCY).map(n =>
+                processNode(n, userLevel).catch(() => {})  // never crash the page
+            )
+        );
+    }
 }
 
-// Listen for the "simplify" command from popup.js
+// Listen for the popup's "Simplify" button
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-  if (msg.action === "simplify") {
-    runSimplification(msg.userLevel)
-      .then(() => reply({ status: "done" }))
-      .catch((e) => reply({ status: "error", error: e.message }));
-    return true; // Keep the port open for the async reply
-  }
+    if (msg.action === "simplify") {
+        runSimplification(msg.userLevel)
+            .then(() => reply({ status: "done" }))
+            .catch(e => reply({ status: "error", error: e.message }));
+        return true;  // keep message channel open for async reply
+    }
 });

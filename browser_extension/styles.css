@@ -1,14 +1,22 @@
-/* Simplified text appears with a subtle blue highlight and underline.
-   Hovering shows the original text via the native browser tooltip (title attr). */
-.ara-simplified {
-  background-color: rgba(74, 127, 255, 0.10);
-  border-bottom: 1.5px solid rgba(74, 127, 255, 0.45);
-  border-radius: 2px;
-  cursor: help;
-  padding: 0 1px;
-  transition: background-color 0.15s ease;
+/*
+  Replaced words get a soft blue underline — visually similar to a
+  dictionary link, which users intuitively understand as "this word
+  has been changed / has more information."
+  Hovering shows the original word via the native browser tooltip.
+*/
+.ara-word {
+    background-color: rgba(74, 127, 255, 0.10);
+    border-bottom: 1.5px dotted rgba(74, 127, 255, 0.60);
+    border-radius: 2px;
+    cursor: help;
+    padding: 0 1px;
+    transition: background-color 0.15s ease;
+    /* Prevent the span from disrupting line-height */
+    display: inline;
+    line-height: inherit;
 }
 
-.ara-simplified:hover {
-  background-color: rgba(74, 127, 255, 0.22);
+.ara-word:hover {
+    background-color: rgba(74, 127, 255, 0.22);
+    border-bottom-style: solid;
 }

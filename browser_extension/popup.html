@@ -4,355 +4,779 @@
   <meta charset="UTF-8" />
   <title>Adaptive Reader</title>
   <style>
-    /* ── Reset ── */
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /* ══════════════════════════════════════════
+       GLOBAL RESET
+    ══════════════════════════════════════════ */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      width: 320px;
-      background: #08101c;
-      color: #e2e8f0;
+      width: 340px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+                   Roboto, "Helvetica Neue", sans-serif;
+      background: #0d1117;
+      color: #e6edf3;
       overflow: hidden;
       user-select: none;
+      -webkit-font-smoothing: antialiased;
     }
 
-    /* ── Header ── */
-    .hdr {
-      padding: 16px 18px 14px;
-      background: linear-gradient(135deg, #0f1f3d 0%, #08101c 100%);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
+
+    /* ══════════════════════════════════════════
+       SCREEN 1 — ONBOARDING  (untouched)
+    ══════════════════════════════════════════ */
+
+    #s-onboard {
+      position: relative;
+      width: 340px;
+      height: 490px;
+      overflow: hidden;
+    }
+
+    .ob-bg {
+      position: absolute;
+      inset: 0;
+      background: url('library_image.avif') center 25% / cover no-repeat;
+      filter: brightness(0.25) saturate(0.45) sepia(0.18);
+      transform: scale(1.04);
+      z-index: 0;
+    }
+
+    .ob-vignette {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        to bottom,
+        rgba(13, 17, 23, 0.15) 0%,
+        rgba(13, 17, 23, 0.55) 48%,
+        rgba(13, 17, 23, 0.93) 100%
+      );
+      z-index: 1;
+    }
+
+    .ob-body {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-end;
+      padding: 0 26px 30px;
+      text-align: center;
+    }
+
+    .ob-icon-wrap {
+      width: 54px;
+      height: 54px;
+      background: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
       display: flex;
       align-items: center;
-      gap: 12px;
+      justify-content: center;
+      font-size: 26px;
+      margin-bottom: 14px;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
     }
-    .hdr-logo {
-      font-size: 30px;
-      line-height: 1;
-      filter: drop-shadow(0 0 8px rgba(99,179,237,0.5));
-    }
-    .hdr-text { flex: 1; }
-    .hdr-title {
-      font-size: 15px;
+
+    .ob-title {
+      font-size: 27px;
       font-weight: 700;
-      color: #f1f5f9;
+      color: #ffffff;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 7px;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.55);
+    }
+
+    .ob-tagline {
+      font-size: 13px;
+      color: rgba(220, 230, 244, 0.65);
+      line-height: 1.55;
+      margin-bottom: 20px;
+      letter-spacing: 0.01em;
+    }
+
+    .ob-features {
+      width: 100%;
+      background: rgba(255, 255, 255, 0.055);
+      border: 1px solid rgba(255, 255, 255, 0.085);
+      border-radius: 12px;
+      padding: 13px 15px;
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      margin-bottom: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      text-align: left;
+    }
+
+    .ob-feat {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 12px;
+      color: rgba(220, 230, 244, 0.72);
+      line-height: 1.45;
+    }
+
+    .ob-feat-dot {
+      flex-shrink: 0;
+      width: 18px;
+      height: 18px;
+      background: rgba(68, 147, 248, 0.18);
+      border: 1px solid rgba(68, 147, 248, 0.28);
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 9px;
+      color: #79b8f8;
+      margin-top: 1px;
+    }
+
+    .ob-cta {
+      width: 100%;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, #1b4fd8, #3d7ee8);
+      color: #ffffff;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
       letter-spacing: 0.02em;
+      margin-bottom: 10px;
+      box-shadow: 0 4px 20px rgba(27, 79, 216, 0.42),
+                  0 1px 0 rgba(255, 255, 255, 0.10) inset;
+      transition: all 0.18s ease;
     }
-    .hdr-sub {
-      font-size: 10.5px;
-      color: #475569;
-      margin-top: 2px;
+    .ob-cta:hover {
+      background: linear-gradient(135deg, #1742c0, #2f6dd4);
+      box-shadow: 0 6px 26px rgba(27, 79, 216, 0.55);
+      transform: translateY(-1px);
     }
-    .status-dot {
-      width: 9px; height: 9px;
+    .ob-cta:active { transform: translateY(0); }
+
+    .ob-note {
+      font-size: 9.5px;
+      color: rgba(220, 230, 244, 0.22);
+      letter-spacing: 0.04em;
+    }
+
+
+    /* ══════════════════════════════════════════
+       SCREEN 2 — MAIN APP
+
+       Visual concept: circuit-board background
+       (functionality_page_background.jpg) with a
+       dark overlay, clean layout, sharp corners.
+
+       TYPOGRAPHY ALIGNMENT WITH SCREEN 1
+       ────────────────────────────────────
+       The key fix: Screen 1 uses normal mixed-case
+       text with tight or near-zero letter-spacing
+       (−0.02em on the title, 0.01em on body copy).
+       The previous Screen 2 applied text-transform:
+       uppercase and 0.20–0.22em letter-spacing to
+       nearly everything, which made it feel like a
+       different product entirely.
+
+       Now Screen 2 follows the same rules:
+         • No uppercase except the tiny section labels
+           (where 0.13em uppercase is a conventional
+           UI pattern, and Screen 1 would use it too
+           if it had such labels)
+         • letter-spacing stays at 0.01–0.02em max
+           for any readable text
+         • Font sizes and weights mirror Screen 1's scale
+
+       COLOUR ALIGNMENT WITH SCREEN 1
+       ────────────────────────────────
+       Primary accent changed from crimson #c41e3a to
+       the exact same blue gradient used by the Screen 1
+       CTA button: linear-gradient(135deg, #1b4fd8, #3d7ee8).
+       This means both screens share one accent colour.
+    ══════════════════════════════════════════ */
+
+    #s-main {
+      display: none;
+      flex-direction: column;
+      position: relative;
+
+      /*
+        The circuit-board image is layered under a semi-opaque
+        dark wash via CSS multiple backgrounds.
+        The gradient sits on top (listed first); the image is behind.
+        84–92% opacity keeps text fully readable while letting
+        the faint blue grid lines bleed through at the edges.
+      */
+      background:
+        linear-gradient(
+          180deg,
+          rgba(4, 7, 16, 0.90) 0%,
+          rgba(4, 7, 16, 0.84) 55%,
+          rgba(4, 7, 16, 0.92) 100%
+        ),
+        url('functionality_page_background.jpg') center / cover no-repeat;
+
+      /* Custom properties — blue accent now matches Screen 1 */
+      --blue:      #3d7ee8;
+      --blue-dark: #1b4fd8;
+      --blue-bg:   rgba(61, 126, 232, 0.16);
+      --blue-glow: rgba(27, 79, 216, 0.35);
+      --white:     #ffffff;
+      --off-wh:    rgba(255, 255, 255, 0.82);
+      --muted:     rgba(255, 255, 255, 0.30);
+      --ghost:     rgba(255, 255, 255, 0.07);
+      --border:    rgba(255, 255, 255, 0.18);
+      --border-hi: rgba(255, 255, 255, 0.42);
+      --sep:       rgba(255, 255, 255, 0.07);
+      --green:     #3fb950;
+    }
+
+
+    /* ── Header ──────────────────────────────── */
+
+    .m-hdr {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      padding: 16px 20px 14px;
+      border-bottom: 1px solid var(--sep);
+    }
+
+    /*
+      Blue glow on the logo echoes the blue accent from Screen 1's
+      feature-dot borders (#79b8f8 / rgba(68,147,248,...)).
+    */
+    .m-logo {
+      font-size: 20px;
+      line-height: 1;
+      filter: drop-shadow(0 0 7px rgba(68, 147, 248, 0.50));
+    }
+
+    .m-hdr-text { flex: 1; }
+
+    /*
+      .m-title matches Screen 1's .ob-title character:
+      weight-700, tight tracking, normal mixed case.
+      Smaller than Screen 1's 27px hero title since this
+      is a utility header, not a landing page headline.
+    */
+    .m-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: 0.01em;   /* same as Screen 1 body copy */
+    }
+
+    /*
+      .m-sub mirrors Screen 1's .ob-tagline treatment:
+      dimmer, smaller, normal case, gentle tracking.
+    */
+    .m-sub {
+      font-size: 9.5px;
+      color: var(--muted);
+      margin-top: 3px;
+      letter-spacing: 0.01em;
+    }
+
+    /* Three-state dot — class toggled by popup.js */
+    .m-dot {
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       flex-shrink: 0;
       transition: background 0.3s, box-shadow 0.3s;
     }
-    .status-dot.online  { background:#10b981; box-shadow: 0 0 7px #10b981; }
-    .status-dot.offline { background:#ef4444; box-shadow: 0 0 7px #ef4444; }
-    .status-dot.loading {
-      background:#f59e0b; box-shadow: 0 0 7px #f59e0b;
-      animation: blink 1.2s infinite;
+    .m-dot.online {
+      background: var(--green);
+      box-shadow: 0 0 6px rgba(63, 185, 80, 0.60);
     }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+    .m-dot.offline {
+      background: #f85149;
+      box-shadow: 0 0 6px rgba(248, 81, 73, 0.60);
+    }
+    .m-dot.checking {
+      background: rgba(255, 255, 255, 0.35);
+      animation: dot-pulse 1.3s ease-in-out infinite;
+    }
+    @keyframes dot-pulse {
+      0%, 100% { opacity: 1;   }
+      50%       { opacity: 0.2; }
+    }
 
-    /* ── Body ── */
-    .body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
 
-    /* ── Section label ── */
-    .sec-label {
-      font-size: 10px;
+    /* ── Body ────────────────────────────────── */
+
+    .m-body {
+      padding: 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    /*
+      Section micro-label: the one place where uppercase is kept.
+      This is a standard UI convention (think "SETTINGS", "OPTIONS")
+      and does not break coherence because it reads as chrome, not
+      as body text. Letter-spacing matches the original main screen's
+      .s-lbl rule (0.13em) rather than the aggressive 0.20em of the
+      SAMSI-style version.
+    */
+    .s-lbl {
+      font-size: 9px;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.10em;
-      color: #334155;
+      letter-spacing: 0.13em;
+      color: var(--muted);
       margin-bottom: 9px;
     }
 
-    /* ── Level cards ── */
-    .level-grid {
+
+    /* ── Level cards ─────────────────────────── */
+
+    .lvl-row {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 8px;
+      gap: 7px;
     }
 
-    .level-card {
-      position: relative;
+    /*
+      Card border style retained from the previous version
+      (clean outlined rectangles). Sharp corners (border-radius: 0)
+      contrast nicely with the rounded elements of Screen 1 and
+      give Screen 2 its own identity without a typography clash.
+    */
+    .lvl-card {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 5px;
+      justify-content: center;
+      gap: 3px;
       padding: 11px 6px 10px;
-      background: #0f1a2e;
-      border: 1.5px solid #1a2d4a;
-      border-radius: 11px;
       cursor: pointer;
-      transition: all 0.2s ease;
-      overflow: hidden;
-    }
-    .level-card::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      border-radius: 10px;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-    }
-    .level-card:hover { border-color: #2a4060; background: #122040; }
-    .level-card input[type="radio"] { display: none; }
-
-    /* Level-specific accent colours */
-    .level-card[data-level="beginner"].selected {
-      border-color: transparent;
-      background:
-        linear-gradient(#0d1e32, #0d1e32) padding-box,
-        linear-gradient(135deg, #10b981, #059669) border-box;
-      box-shadow: 0 0 18px rgba(16,185,129,0.18);
-    }
-    .level-card[data-level="intermediate"].selected {
-      border-color: transparent;
-      background:
-        linear-gradient(#0d1e32, #0d1e32) padding-box,
-        linear-gradient(135deg, #3b82f6, #2563eb) border-box;
-      box-shadow: 0 0 18px rgba(59,130,246,0.18);
-    }
-    .level-card[data-level="advanced"].selected {
-      border-color: transparent;
-      background:
-        linear-gradient(#0d1e32, #0d1e32) padding-box,
-        linear-gradient(135deg, #8b5cf6, #7c3aed) border-box;
-      box-shadow: 0 0 18px rgba(139,92,246,0.18);
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 0;
+      transition: all 0.18s ease;
     }
 
-    .level-icon { font-size: 22px; line-height: 1; }
-    .level-name {
-      font-size: 11.5px;
+    .lvl-card:hover {
+      border-color: var(--border-hi);
+      background: var(--ghost);
+    }
+
+    /* Selected: blue fill matching Screen 1's CTA button */
+    .lvl-card.sel {
+      background: linear-gradient(135deg, var(--blue-dark), var(--blue));
+      border-color: var(--blue);
+      box-shadow: 0 3px 14px var(--blue-glow);
+    }
+
+    .lvl-card input[type="radio"] { display: none; }
+
+    .lvl-icon {
+      font-size: 16px;
+      line-height: 1;
+      opacity: 0.85;
+    }
+
+    /*
+      Level name: normal mixed case, matching Screen 1 typography.
+      Previously this was uppercase with 0.12em spacing — that's gone.
+    */
+    .lvl-name {
+      font-size: 10px;
       font-weight: 600;
-      color: #94a3b8;
-      transition: color 0.2s;
+      color: var(--white);
+      letter-spacing: 0.01em;
+      text-align: center;
     }
-    .level-desc { font-size: 9px; color: #334155; text-align: center; line-height: 1.3; }
 
-    .level-card[data-level="beginner"].selected     .level-name { color: #34d399; }
-    .level-card[data-level="intermediate"].selected .level-name { color: #60a5fa; }
-    .level-card[data-level="advanced"].selected     .level-name { color: #a78bfa; }
+    .lvl-desc {
+      font-size: 8.5px;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+    .lvl-card.sel .lvl-desc { color: rgba(255, 255, 255, 0.65); }
 
-    /* ── Progress block ── */
+
+    /* ── Progress block ───────────────────────── */
+
     .prog-block {
-      background: #0c1628;
-      border: 1px solid #1a2d4a;
-      border-radius: 11px;
-      padding: 12px 14px;
+      border: 1px solid var(--sep);
+      padding: 11px 13px 12px;
     }
-    .prog-row {
+
+    .prog-top {
       display: flex;
       justify-content: space-between;
-      align-items: baseline;
+      align-items: center;
       margin-bottom: 8px;
     }
-    .prog-label { font-size: 11px; color: #64748b; }
-    .prog-pct   { font-size: 14px; font-weight: 700; color: #60a5fa; }
+
+    /*
+      prog-lbl ("Ready", "Processing…") — normal case, matching
+      the tone of Screen 1's feature-list text. No uppercase.
+    */
+    .prog-lbl {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--muted);
+      letter-spacing: 0.01em;
+    }
+
+    .prog-pct {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--white);
+      letter-spacing: -0.01em;
+    }
 
     .prog-track {
-      height: 5px;
-      background: #1a2d4a;
-      border-radius: 99px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.10);
+      border-radius: 1px;
       overflow: hidden;
     }
+
+    /* Blue fill matches the primary button and selected level card */
     .prog-fill {
       height: 100%;
-      border-radius: 99px;
-      background: linear-gradient(90deg, #2563eb, #60a5fa);
-      transition: width 0.45s cubic-bezier(0.4,0,0.2,1);
       width: 0%;
+      border-radius: 1px;
+      background: linear-gradient(90deg, var(--blue-dark), var(--blue));
+      transition: width 0.4s ease, background 0.4s ease;
       position: relative;
     }
+
     .prog-fill.running::after {
       content: "";
       position: absolute;
-      top: 0; left: -60%;
-      width: 60%; height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
-      animation: shimmer 1.4s infinite;
+      inset: 0;
+      background: linear-gradient(90deg,
+        transparent 0%,
+        rgba(255, 255, 255, 0.45) 50%,
+        transparent 100%);
+      transform: translateX(-100%);
+      animation: bar-shimmer 1.5s ease-in-out infinite;
     }
-    @keyframes shimmer { to { left: 160%; } }
-    .prog-fill.done { background: linear-gradient(90deg, #059669, #34d399); }
+    @keyframes bar-shimmer { to { transform: translateX(200%); } }
 
-    .prog-status {
-      font-size: 10.5px;
-      color: #475569;
+    .prog-fill.done {
+      background: var(--green);
+    }
+
+    .prog-msg {
+      font-size: 9.5px;
+      color: var(--muted);
       margin-top: 7px;
-      min-height: 15px;
-      line-height: 1.4;
+      min-height: 13px;
+      line-height: 1.45;
+      letter-spacing: 0.01em;
     }
-    .prog-status.ok  { color: #4ade80; }
-    .prog-status.err { color: #f87171; }
+    .prog-msg.ok  { color: var(--green); }
+    .prog-msg.err { color: #f85149; }
 
-    /* ── Buttons ── */
-    .btn {
+
+    /* ── Amber hint bar ───────────────────────── */
+
+    .hint-bar {
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      padding: 8px 10px;
+      border-left: 2px solid rgba(210, 153, 34, 0.50);
+      background: rgba(210, 153, 34, 0.05);
+    }
+
+    .hint-pip {
+      flex-shrink: 0;
+      width: 5px;
+      height: 5px;
+      background: rgba(210, 153, 34, 0.65);
+      border-radius: 50%;
+      margin-top: 3.5px;
+    }
+
+    /* Hint text: same font size and weight as Screen 1's .ob-feat */
+    .hint-bar span {
+      font-size: 10.5px;
+      color: rgba(210, 153, 34, 0.70);
+      line-height: 1.45;
+      letter-spacing: 0.01em;
+    }
+
+
+    /* ── Action buttons ───────────────────────── */
+
+    .m-btn {
       width: 100%;
-      padding: 11px 16px;
+      padding: 12px 16px;
       border: none;
-      border-radius: 9px;
-      font-size: 13px;
-      font-weight: 600;
+      border-radius: 0;     /* sharp corners retained from the SAMSI-style design */
+      font-size: 13px;      /* same as Screen 1's .ob-cta font-size */
+      font-weight: 600;     /* same as Screen 1's .ob-cta font-weight */
+      letter-spacing: 0.02em; /* matches Screen 1's .ob-cta exactly */
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 8px;
+      gap: 9px;
       transition: all 0.18s ease;
-      letter-spacing: 0.01em;
+      /* no text-transform: uppercase — Screen 1 doesn't use it on its CTA */
     }
-    .btn-primary {
-      background: linear-gradient(135deg, #1d4ed8, #3b82f6);
-      color: #fff;
-      box-shadow: 0 3px 14px rgba(37,99,235,0.35);
+
+    /*
+      Primary button: exact same gradient as Screen 1's .ob-cta,
+      same box-shadow construction, same hover behaviour.
+      The two screens now share one button language.
+    */
+    .m-btn-pri {
+      background: linear-gradient(135deg, #1b4fd8, #3d7ee8);
+      color: var(--white);
+      box-shadow: 0 4px 20px rgba(27, 79, 216, 0.42),
+                  0 1px 0 rgba(255, 255, 255, 0.10) inset;
     }
-    .btn-primary:hover:not(:disabled) {
-      background: linear-gradient(135deg, #1e40af, #2563eb);
-      box-shadow: 0 5px 18px rgba(37,99,235,0.5);
+    .m-btn-pri:hover:not(:disabled) {
+      background: linear-gradient(135deg, #1742c0, #2f6dd4);
+      box-shadow: 0 6px 26px rgba(27, 79, 216, 0.55);
       transform: translateY(-1px);
     }
-    .btn-primary:active:not(:disabled) { transform: translateY(0); }
-    .btn-primary:disabled {
-      background: linear-gradient(135deg, #1a3060, #1e3a70);
-      color: #3d5a8a;
+    .m-btn-pri:active:not(:disabled) { transform: none; }
+    .m-btn-pri:disabled {
+      background: linear-gradient(135deg, #192c52, #1c3660);
+      color: rgba(255, 255, 255, 0.22);
       cursor: not-allowed;
       box-shadow: none;
     }
 
-    .btn-secondary {
-      background: #0f1a2e;
-      color: #64748b;
-      border: 1.5px solid #1a2d4a;
+    /* Secondary: ghost border, same subdued treatment as before */
+    .m-btn-sec {
+      background: transparent;
+      color: var(--off-wh);
+      border: 1px solid var(--border);
     }
-    .btn-secondary:hover:not(:disabled) {
-      background: #132035;
-      color: #94a3b8;
-      border-color: #2a4060;
+    .m-btn-sec:hover:not(:disabled) {
+      background: var(--ghost);
+      color: var(--white);
+      border-color: var(--border-hi);
     }
-    .btn-secondary:disabled { opacity: 0.35; cursor: not-allowed; }
+    .m-btn-sec:disabled {
+      opacity: 0.30;
+      cursor: not-allowed;
+    }
 
-    .btn-icon { font-size: 15px; }
+    .m-ico { font-size: 13px; }
 
+    /* Spinner inserted by popup.js while running */
     .spinner {
-      width: 14px; height: 14px;
-      border: 2px solid rgba(255,255,255,0.15);
-      border-top-color: #93c5fd;
+      width: 12px;
+      height: 12px;
+      border: 1.5px solid rgba(255, 255, 255, 0.20);
+      border-top-color: rgba(255, 255, 255, 0.85);
       border-radius: 50%;
       animation: spin 0.65s linear infinite;
+      flex-shrink: 0;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Footer ── */
-    .ftr {
-      padding: 9px 18px;
-      border-top: 1px solid #0e1c30;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .ftr-item { font-size: 10px; color: #1e3352; }
-    .ftr-item span { color: #334155; }
 
-    /* ── Hover hint ── */
-    .hint-bar {
-      background: rgba(251,191,36,0.07);
-      border: 1px solid rgba(251,191,36,0.15);
-      border-radius: 7px;
-      padding: 7px 10px;
-      font-size: 10.5px;
-      color: #78716c;
-      line-height: 1.4;
+    /* ── Footer ──────────────────────────────── */
+
+    .m-ftr {
+      padding: 9px 20px;
+      border-top: 1px solid var(--sep);
       display: flex;
-      align-items: flex-start;
-      gap: 6px;
+      align-items: center;
+      justify-content: space-between;
     }
-    .hint-icon { flex-shrink: 0; margin-top: 1px; }
+
+    /*
+      Footer text: normal mixed case, small size — matches the
+      tone of Screen 1's .ob-note (9.5px, low opacity).
+      Previously this was all-caps with 0.14em spacing; now it
+      reads the same way Screen 1's footnote does.
+    */
+    .m-ftr-l {
+      font-size: 9.5px;
+      color: var(--muted);
+      letter-spacing: 0.02em;
+    }
+
+    .m-ftr-l span {
+      color: rgba(255, 255, 255, 0.38);
+    }
+
+    /* "ⓘ About" link — same subtle ghost-hover as the secondary button */
+    .m-about {
+      font-size: 9.5px;
+      font-weight: 500;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 8px;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+      letter-spacing: 0.02em;
+    }
+    .m-about:hover {
+      border-color: var(--border);
+      color: var(--off-wh);
+      background: var(--ghost);
+    }
+
   </style>
 </head>
 <body>
 
-  <!-- Header -->
-  <div class="hdr">
-    <div class="hdr-logo">📖</div>
-    <div class="hdr-text">
-      <div class="hdr-title">Adaptive Reader</div>
-      <div class="hdr-sub">AI vocabulary simplifier</div>
+
+<!-- ════════════════════════════════════════
+     SCREEN 1 · ONBOARDING  (untouched)
+════════════════════════════════════════ -->
+<div id="s-onboard">
+
+  <div class="ob-bg"></div>
+  <div class="ob-vignette"></div>
+
+  <div class="ob-body">
+
+    <div class="ob-icon-wrap">📖</div>
+
+    <h1 class="ob-title">Adaptive Reader</h1>
+
+    <p class="ob-tagline">
+      Every word, at your level.<br>
+      Read anything. Understand everything.
+    </p>
+
+    <div class="ob-features">
+
+      <div class="ob-feat">
+        <div class="ob-feat-dot">✦</div>
+        <span>Rewrites paragraphs to match your reading level, preserving every fact</span>
+      </div>
+
+      <div class="ob-feat">
+        <div class="ob-feat-dot">◈</div>
+        <span>Highlights vocabulary to learn — hover any yellow word for its CEFR level and definition</span>
+      </div>
+
+      <div class="ob-feat">
+        <div class="ob-feat-dot">◉</div>
+        <span>Works on every webpage, instantly, with one click</span>
+      </div>
+
     </div>
-    <div class="status-dot loading" id="dotEl" title="Checking server…"></div>
+
+    <button class="ob-cta" id="btn-start">Get Started →</button>
+
+    <div class="ob-note">Requires a local server running at localhost:5000</div>
+
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════
+     SCREEN 2 · MAIN APP
+     Background: functionality_page_background.jpg
+     with a dark overlay wash.
+     Typography and accent colour now match Screen 1.
+     All element IDs are identical to what popup.js expects.
+════════════════════════════════════════ -->
+<div id="s-main">
+
+  <!-- Header -->
+  <div class="m-hdr">
+    <div class="m-logo">📖</div>
+    <div class="m-hdr-text">
+      <div class="m-title">Adaptive Reader</div>
+      <div class="m-sub" id="modelLbl">AI vocabulary simplifier</div>
+    </div>
+    <div class="m-dot checking" id="dotEl" title="Checking server…"></div>
   </div>
 
-  <div class="body">
+  <!-- Body -->
+  <div class="m-body">
 
-    <!-- Reading level -->
+    <!-- Level selector -->
     <div>
-      <div class="sec-label">Reading Level</div>
-      <div class="level-grid" id="levelGrid">
+      <div class="s-lbl">Reading Level</div>
+      <div class="lvl-row" id="levelGrid">
 
-        <label class="level-card" data-level="beginner">
+        <label class="lvl-card" data-level="beginner">
           <input type="radio" name="level" value="beginner" />
-          <div class="level-icon">🌱</div>
-          <div class="level-name">Beginner</div>
-          <div class="level-desc">A1 – B1 vocabulary</div>
+          <div class="lvl-icon">🌱</div>
+          <div class="lvl-name">Beginner</div>
+          <div class="lvl-desc">A1 – B1</div>
         </label>
 
-        <label class="level-card" data-level="intermediate">
+        <label class="lvl-card" data-level="intermediate">
           <input type="radio" name="level" value="intermediate" />
-          <div class="level-icon">📘</div>
-          <div class="level-name">Intermediate</div>
-          <div class="level-desc">A2 – B2 vocabulary</div>
+          <div class="lvl-icon">📘</div>
+          <div class="lvl-name">Intermediate</div>
+          <div class="lvl-desc">A2 – B2</div>
         </label>
 
-        <label class="level-card" data-level="advanced">
+        <label class="lvl-card" data-level="advanced">
           <input type="radio" name="level" value="advanced" />
-          <div class="level-icon">🎓</div>
-          <div class="level-name">Advanced</div>
-          <div class="level-desc">B2 – C1 vocabulary</div>
+          <div class="lvl-icon">🎓</div>
+          <div class="lvl-name">Advanced</div>
+          <div class="lvl-desc">B2 – C1</div>
         </label>
 
       </div>
     </div>
 
-    <!-- Progress -->
+    <!-- Progress block -->
     <div class="prog-block">
-      <div class="prog-row">
-        <span class="prog-label" id="progLabel">Ready</span>
-        <span class="prog-pct"   id="progPct">—</span>
+      <div class="prog-top">
+        <span class="prog-lbl" id="progLabel">Ready</span>
+        <span class="prog-pct" id="progPct">—</span>
       </div>
       <div class="prog-track">
         <div class="prog-fill" id="progFill"></div>
       </div>
-      <div class="prog-status" id="progStatus">
-        Choose a level and click Simplify.
-      </div>
+      <div class="prog-msg" id="progMsg">Choose a level and click Simplify.</div>
     </div>
 
-    <!-- Hover hint -->
+    <!-- Hint bar -->
     <div class="hint-bar">
-      <span class="hint-icon">🟡</span>
-      <span>Yellow-underlined words have hover definitions with CEFR difficulty levels.</span>
+      <div class="hint-pip"></div>
+      <span>Yellow-underlined words show CEFR level and definition on hover.</span>
     </div>
 
-    <!-- Buttons -->
-    <button class="btn btn-primary" id="btnSimplify">
-      <span class="btn-icon">✨</span>
+    <!-- Primary action button -->
+    <button class="m-btn m-btn-pri" id="btnSimplify">
+      <span class="m-ico">✨</span>
       <span id="btnTx">Simplify This Page</span>
     </button>
 
-    <button class="btn btn-secondary" id="btnUndo" disabled>
-      <span class="btn-icon">↩</span> Restore Original
+    <!-- Secondary action button -->
+    <button class="m-btn m-btn-sec" id="btnUndo" disabled>
+      <span class="m-ico">↩</span>
+      Restore Original
     </button>
 
   </div>
 
   <!-- Footer -->
-  <div class="ftr">
-    <div class="ftr-item">Server: <span>localhost:5000</span></div>
-    <div class="ftr-item" id="modelLbl">Model: checking…</div>
+  <div class="m-ftr">
+    <div class="m-ftr-l">Server: <span>localhost:5000</span></div>
+    <div class="m-about" id="btnAbout">ⓘ About</div>
   </div>
 
-  <script src="popup.js"></script>
+</div>
+
+
+<script src="popup.js"></script>
 </body>
 </html>

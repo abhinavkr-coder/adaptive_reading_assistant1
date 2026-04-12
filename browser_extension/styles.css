@@ -1,45 +1,45 @@
-/* ═══════════════════════════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════
    Adaptive Reading Assistant — injected page styles
-   ═══════════════════════════════════════════════════════════════════════════
 
    Three visual layers:
-   1. .ara-modified      — blue left border on rewritten paragraphs
-   2. .ara-word-hint     — amber underline on medium-difficulty words
-   3. #ara-def-popup     — floating definition card (fixed position)
-   ═══════════════════════════════════════════════════════════════════════════ */
+   1. .ara-modified      blue left border on rewritten paragraphs
+   2. .ara-word-hint     amber dotted underline on medium-difficulty words
+   3. #ara-def-popup     floating definition card (fixed position)
+   ═══════════════════════════════════════════════════════════════ */
 
 
-/* ── 1. Rewritten paragraphs ─────────────────────────────────────────────── */
+/* ── 1. Rewritten paragraphs ──────────────────────────────── */
 
 .ara-modified {
-  border-left: 2.5px solid rgba(59, 130, 246, 0.50);
+  border-left: 2.5px solid rgba(68, 147, 248, 0.45);
   padding-left: 10px !important;
-  background-color: rgba(59, 130, 246, 0.03);
+  background-color: rgba(68, 147, 248, 0.03);
   border-radius: 0 4px 4px 0;
   cursor: help;
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .ara-modified:hover {
-  background-color: rgba(59, 130, 246, 0.08);
-  border-left-color: rgba(59, 130, 246, 0.80);
+  background-color: rgba(68, 147, 248, 0.07);
+  border-left-color: rgba(68, 147, 248, 0.75);
 }
 
+/* Headings: underline instead of left border */
 h1.ara-modified, h2.ara-modified, h3.ara-modified,
 h4.ara-modified, h5.ara-modified, h6.ara-modified {
   border-left: none;
   padding-left: 0 !important;
-  border-bottom: 2px solid rgba(59, 130, 246, 0.40);
+  border-bottom: 2px solid rgba(68, 147, 248, 0.38);
   padding-bottom: 3px;
   border-radius: 0;
 }
 
 
-/* ── 2. Medium-difficulty word highlights ────────────────────────────────── */
+/* ── 2. Medium-difficulty word highlights ─────────────────── */
 
 .ara-word-hint {
-  background-color: rgba(251, 191, 36, 0.12);
-  border-bottom: 1.5px dotted rgba(251, 191, 36, 0.55);
+  background-color: rgba(210, 153, 34, 0.10);
+  border-bottom: 1.5px dotted rgba(210, 153, 34, 0.50);
   border-radius: 2px;
   cursor: help;
   padding: 0 1px;
@@ -49,41 +49,50 @@ h4.ara-modified, h5.ara-modified, h6.ara-modified {
 }
 
 .ara-word-hint:hover {
-  background-color: rgba(251, 191, 36, 0.26);
+  background-color: rgba(210, 153, 34, 0.22);
   border-bottom-style: solid;
-  border-bottom-color: rgba(251, 191, 36, 0.85);
+  border-bottom-color: rgba(210, 153, 34, 0.80);
 }
 
 
-/* ── 3. Definition popup ─────────────────────────────────────────────────── */
+/* ── 3. Definition popup ──────────────────────────────────── */
 
 #ara-def-popup {
-  /* Hard reset — prevents the host page's CSS from leaking in */
-  all: initial;
+  all: initial;   /* hard reset — prevents host page CSS from leaking in */
 
   position:    fixed !important;
   z-index:     2147483647 !important;
-  width:       280px !important;
+  width:       285px !important;
 
-  background:    #121d2e !important;
-  border:        1px solid #1e3352 !important;
+  background:    #111820 !important;
+  border:        1px solid #1c2a3a !important;
   border-radius: 12px !important;
-  padding:       14px 16px !important;
-  box-shadow:    0 20px 50px rgba(0,0,0,0.55),
-                 0 0 0 1px rgba(255,255,255,0.04) !important;
+  padding:       0 !important;
+  overflow:      hidden !important;
+  box-shadow:    0 20px 48px rgba(0, 0, 0, 0.60),
+                 0 0 0 1px rgba(255, 255, 255, 0.04) !important;
 
-  font-family:  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-family:  -apple-system, BlinkMacSystemFont, "Segoe UI",
+                Roboto, sans-serif !important;
   font-size:    13px !important;
   line-height:  1.55 !important;
-  color:        #e2e8f0 !important;
+  color:        #e6edf3 !important;
 
-  /* Start invisible and slightly below target position */
+  /* Start invisible, slightly low, slightly shrunk */
   opacity:   0 !important;
-  transform: translateY(7px) scale(0.96) !important;
-  transition: opacity 0.20s cubic-bezier(0.16,1,0.3,1),
-              transform 0.20s cubic-bezier(0.16,1,0.3,1) !important;
+  transform: translateY(6px) scale(0.97) !important;
+  transition: opacity 0.20s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.20s cubic-bezier(0.16, 1, 0.3, 1) !important;
 
-  pointer-events: none !important;  /* don't intercept page clicks */
+  pointer-events: none !important;
+}
+
+/* Thin colour accent bar at the very top of the popup */
+#ara-def-popup::before {
+  content: "" !important;
+  display: block !important;
+  height: 2px !important;
+  background: linear-gradient(90deg, #4493f8, #a371f7) !important;
 }
 
 #ara-def-popup.ara-pop-visible {
@@ -91,63 +100,69 @@ h4.ara-modified, h5.ara-modified, h6.ara-modified {
   transform: translateY(0) scale(1) !important;
 }
 
-/* Word title */
-.ara-pop-word {
-  font-size:   16px !important;
-  font-weight: 700 !important;
-  color:       #f8fafc !important;
-  margin-bottom: 6px !important;
+/* Inner padding wrapper so the ::before bar touches the edge */
+.ara-pop-inner {
+  padding: 12px 15px 13px !important;
   display: block !important;
 }
 
-/* Meta row: level badge + part of speech */
+/* Word title */
+.ara-pop-word {
+  font-size:     16px !important;
+  font-weight:   700 !important;
+  color:         #f0f6fc !important;
+  margin-bottom: 5px !important;
+  display:       block !important;
+}
+
+/* Meta row: CEFR badge + part of speech */
 .ara-pop-meta {
   display:       flex !important;
   align-items:   center !important;
-  gap:           8px !important;
-  margin-bottom: 10px !important;
+  gap:           7px !important;
+  margin-bottom: 9px !important;
 }
 
 /* CEFR level badge */
 .ara-level-badge {
   display:        inline-block !important;
-  font-size:      10px !important;
+  font-size:      9.5px !important;
   font-weight:    700 !important;
-  letter-spacing: 0.07em !important;
-  padding:        2px 9px !important;
+  letter-spacing: 0.08em !important;
+  padding:        2px 8px !important;
   border-radius:  99px !important;
 }
 
-/* Level-specific badge colours */
-.ara-lvl-A1 { background: rgba(34,197,94,0.18)  !important; color: #4ade80 !important; }
-.ara-lvl-A2 { background: rgba(74,222,128,0.18) !important; color: #86efac !important; }
-.ara-lvl-B1 { background: rgba(251,191,36,0.20) !important; color: #fcd34d !important; }
-.ara-lvl-B2 { background: rgba(249,115,22,0.20) !important; color: #fb923c !important; }
-.ara-lvl-C1 { background: rgba(239,68,68,0.20)  !important; color: #f87171 !important; }
-.ara-lvl-C2 { background: rgba(185,28,28,0.22)  !important; color: #fca5a5 !important; }
+/* Level colours — green → amber → red scale matches intuition */
+.ara-lvl-A1 { background: rgba(63,185,80,0.16)   !important; color: #56d364 !important; }
+.ara-lvl-A2 { background: rgba(63,185,80,0.12)   !important; color: #7ee787 !important; }
+.ara-lvl-B1 { background: rgba(210,153,34,0.18)  !important; color: #e3b341 !important; }
+.ara-lvl-B2 { background: rgba(210,113,34,0.18)  !important; color: #f0883e !important; }
+.ara-lvl-C1 { background: rgba(248,81,73,0.18)   !important; color: #ff7b72 !important; }
+.ara-lvl-C2 { background: rgba(185,28,28,0.20)   !important; color: #ffa198 !important; }
 
-/* Part of speech label */
+/* Part of speech */
 .ara-pop-pos {
-  font-size:   11px !important;
-  color:       #64748b !important;
-  font-style:  italic !important;
-  display:     block !important;
+  font-size:  11px !important;
+  color:      #484f58 !important;
+  font-style: italic !important;
+  display:    block !important;
 }
 
-/* Definition text */
+/* Definition */
 .ara-pop-def {
-  color:         #cbd5e1 !important;
-  margin-bottom: 9px !important;
+  color:         #c9d1d9 !important;
+  margin-bottom: 8px !important;
   display:       block !important;
 }
 
 /* Example sentence */
 .ara-pop-example {
   font-style:   italic !important;
-  color:        #64748b !important;
+  color:        #484f58 !important;
   font-size:    11.5px !important;
-  border-left:  2px solid #1e3352 !important;
-  padding-left: 9px !important;
-  margin-top:   2px !important;
+  border-left:  2px solid #1c2a3a !important;
+  padding-left: 8px !important;
+  margin-top:   1px !important;
   display:      block !important;
 }

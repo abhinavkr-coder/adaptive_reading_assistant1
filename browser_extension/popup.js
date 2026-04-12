@@ -1,63 +1,181 @@
 "use strict";
 
-// ── DOM refs ──────────────────────────────────────────────────────────────────
-const dotEl      = document.getElementById("dotEl");
-const levelGrid  = document.getElementById("levelGrid");
-const progFill   = document.getElementById("progFill");
-const progLabel  = document.getElementById("progLabel");
-const progPct    = document.getElementById("progPct");
-const progStatus = document.getElementById("progStatus");
-const btnSimplify= document.getElementById("btnSimplify");
-const btnTx      = document.getElementById("btnTx");
-const btnUndo    = document.getElementById("btnUndo");
-const modelLbl   = document.getElementById("modelLbl");
+// ══════════════════════════════════════════════════════════════
+//  SCREEN MANAGEMENT
+//
+//  The popup has two screens: onboarding (#s-onboard) and the
+//  main app (#s-main).  We persist a flag "araOnboarded" so
+//  returning users skip straight to the main screen.
+//  Both screens are always in the DOM; we toggle display + fade.
+// ══════════════════════════════════════════════════════════════
+
+const ONBOARD_KEY = "araOnboarded";
+
+// True once initMain() has wired up event listeners.
+// Prevents duplicate listener binding if the user navigates
+// back to onboarding and then returns to the main screen.
+let _mainReady = false;
+
+// Module-level DOM references — populated by grabRefs()
+// after the main screen is first made visible.
+let dotEl, levelGrid, progFill, progLabel, progPct, progMsg,
+    btnSimplify, btnTx, btnUndo, modelLbl;
 
 
-// ── Level selection ───────────────────────────────────────────────────────────
+// ── Transition: onboarding → main ────────────────────────────
+
+function showMain(animate) {
+  const ob   = document.getElementById("s-onboard");
+  const main = document.getElementById("s-main");
+
+  if (!animate) {
+    // Instant swap for returning users — no flicker
+    ob.style.display   = "none";
+    main.style.display = "flex";
+    main.style.opacity = "1";
+    initMain();
+    return;
+  }
+
+  // Fade the onboarding out, then fade the main screen in.
+  ob.style.transition = "opacity 0.32s ease";
+  ob.style.opacity    = "0";
+
+  setTimeout(() => {
+    ob.style.display    = "none";
+    main.style.display  = "flex";
+    main.style.opacity  = "0";
+    main.style.transition = "opacity 0.28s ease";
+
+    // Two rAF calls ensure the display change is painted
+    // before the opacity transition begins, avoiding a flash.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        main.style.opacity = "1";
+        initMain();
+      });
+    });
+  }, 320);
+}
+
+
+// ── Transition: main → onboarding ────────────────────────────
+
+function showOnboard() {
+  const ob   = document.getElementById("s-onboard");
+  const main = document.getElementById("s-main");
+
+  main.style.transition = "opacity 0.24s ease";
+  main.style.opacity    = "0";
+
+  setTimeout(() => {
+    main.style.display  = "none";
+    ob.style.display    = "block";
+    ob.style.opacity    = "0";
+    ob.style.transition = "opacity 0.28s ease";
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        ob.style.opacity = "1";
+      });
+    });
+  }, 240);
+}
+
+
+// ══════════════════════════════════════════════════════════════
+//  MAIN APP INITIALISATION
+// ══════════════════════════════════════════════════════════════
+
+function initMain() {
+  grabRefs();
+
+  if (!_mainReady) {
+    // Wire up event listeners exactly once — even if the user
+    // goes back to onboarding and returns.
+    bindMainEvents();
+    _mainReady = true;
+  }
+
+  // Restore last-used state from storage, then ping the server.
+  chrome.storage.local.get(
+    ["araLevel","araProgress","araStatus","araRunning",
+     "araHasDone","araTotal","araDone"],
+    state => {
+      restoreState(state);
+      checkServer();
+    }
+  );
+}
+
+function grabRefs() {
+  dotEl       = document.getElementById("dotEl");
+  levelGrid   = document.getElementById("levelGrid");
+  progFill    = document.getElementById("progFill");
+  progLabel   = document.getElementById("progLabel");
+  progPct     = document.getElementById("progPct");
+  progMsg     = document.getElementById("progMsg");
+  btnSimplify = document.getElementById("btnSimplify");
+  btnTx       = document.getElementById("btnTx");
+  btnUndo     = document.getElementById("btnUndo");
+  modelLbl    = document.getElementById("modelLbl");
+}
+
+
+// ══════════════════════════════════════════════════════════════
+//  LEVEL SELECTION
+// ══════════════════════════════════════════════════════════════
 
 function selectLevel(value) {
-  document.querySelectorAll(".level-card").forEach(card => {
+  document.querySelectorAll(".lvl-card").forEach(card => {
     const match = card.dataset.level === value;
-    card.classList.toggle("selected", match);
+    card.classList.toggle("sel", match);
     card.querySelector("input[type=radio]").checked = match;
   });
   chrome.storage.local.set({ araLevel: value });
 }
 
-levelGrid.addEventListener("click", e => {
-  const card = e.target.closest(".level-card");
-  if (card) selectLevel(card.dataset.level);
-});
 
+// ══════════════════════════════════════════════════════════════
+//  PROGRESS UI
+// ══════════════════════════════════════════════════════════════
 
-// ── Progress UI ───────────────────────────────────────────────────────────────
-
+/**
+ * @param {number} pct   0-100
+ * @param {string} label Text left of the bar ("Ready", "Processing…")
+ * @param {string} msg   Text below the bar
+ * @param {"neutral"|"running"|"ok"|"error"} tone
+ */
 function setProgress(pct, label, msg, tone = "neutral") {
-  const clamped = Math.max(0, Math.min(100, pct));
+  if (!progFill) return;  // guard: called before refs are grabbed
+  const c = Math.max(0, Math.min(100, pct));
 
-  progFill.style.width = `${clamped}%`;
-  progFill.classList.toggle("done",    clamped === 100 && tone !== "error");
+  progFill.style.width = `${c}%`;
+  progFill.classList.toggle("done",    c === 100 && tone !== "error" && tone !== "running");
   progFill.classList.toggle("running", tone === "running");
 
-  progPct.textContent   = clamped > 0 ? `${clamped}%` : "—";
+  progPct.textContent   = c > 0 ? `${c}%` : "—";
   progLabel.textContent = label || "Ready";
-
-  progStatus.textContent = msg || "";
-  progStatus.className   = "prog-status"
+  progMsg.textContent   = msg   || "";
+  progMsg.className     = "prog-msg"
     + (tone === "ok"    ? " ok"  : "")
     + (tone === "error" ? " err" : "");
 }
 
 
-// ── Server health check ───────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  SERVER HEALTH CHECK
+// ══════════════════════════════════════════════════════════════
 
 async function checkServer() {
+  if (!dotEl) return;
+  dotEl.className = "m-dot checking";
   try {
     const res  = await fetch("http://localhost:5000/ping",
       { signal: AbortSignal.timeout(2500) });
     const data = await res.json();
 
-    dotEl.className = "status-dot online";
+    dotEl.className = "m-dot online";
     dotEl.title     = "Server online";
 
     if (data.model) {
@@ -65,18 +183,23 @@ async function checkServer() {
         ? data.model.split("/").pop()
         : data.model;
       modelLbl.textContent = `Model: ${short}`;
+    } else {
+      modelLbl.textContent = "AI vocabulary simplifier";
     }
   } catch {
-    dotEl.className        = "status-dot offline";
-    dotEl.title            = "Server offline — run app.py";
-    modelLbl.textContent   = "Model: offline";
-    btnSimplify.disabled   = true;
-    setProgress(0, "Offline", "⚠ Start app.py to enable simplification.", "error");
+    dotEl.className      = "m-dot offline";
+    dotEl.title          = "Server offline — run app.py";
+    modelLbl.textContent = "Server offline";
+    if (btnSimplify) btnSimplify.disabled = true;
+    setProgress(0, "Offline",
+      "⚠ Start app.py to enable simplification.", "error");
   }
 }
 
 
-// ── Restore state on popup open ───────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  STATE RESTORATION  (called on every popup open)
+// ══════════════════════════════════════════════════════════════
 
 function restoreState(s) {
   selectLevel(s.araLevel || "intermediate");
@@ -95,16 +218,19 @@ function restoreState(s) {
     setProgress(pct, label, msg, tone);
   }
 
-  btnUndo.disabled = !hasDone;
+  if (btnUndo) btnUndo.disabled = !hasDone;
   if (running) setRunning(true);
 }
 
 
-// ── Button state helpers ──────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  BUTTON STATE
+// ══════════════════════════════════════════════════════════════
 
 function setRunning(running) {
+  if (!btnSimplify) return;
   btnSimplify.disabled = running;
-  btnUndo.disabled     = running;
+  if (btnUndo) btnUndo.disabled = running;
 
   if (running) {
     if (!btnSimplify.querySelector(".spinner")) {
@@ -112,20 +238,28 @@ function setRunning(running) {
       s.className = "spinner";
       btnSimplify.insertBefore(s, btnTx);
     }
-    btnSimplify.querySelector(".btn-icon").textContent = "";
-    btnTx.textContent = "Simplifying…";
+    const ico = btnSimplify.querySelector(".m-ico");
+    if (ico) ico.textContent = "";
+    if (btnTx) btnTx.textContent = "Simplifying…";
   } else {
     btnSimplify.querySelector(".spinner")?.remove();
-    btnSimplify.querySelector(".btn-icon").textContent = "✨";
-    btnTx.textContent = "Simplify This Page";
+    const ico = btnSimplify.querySelector(".m-ico");
+    if (ico) ico.textContent = "✨";
+    if (btnTx) btnTx.textContent = "Simplify This Page";
   }
 }
 
 
-// ── Live storage updates (while popup is open) ────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  LIVE STORAGE LISTENER
+//  content.js writes progress to storage on every batch;
+//  this listener updates the popup UI in real time.
+// ══════════════════════════════════════════════════════════════
 
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
+  // Ignore updates when the main screen is not visible yet
+  if (!progFill) return;
 
   chrome.storage.local.get(
     ["araProgress","araStatus","araRunning","araHasDone","araTotal","araDone"],
@@ -143,25 +277,53 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
       setProgress(pct, label, msg, tone);
       setRunning(running);
-      btnUndo.disabled = !hasDone || running;
+      if (btnUndo) btnUndo.disabled = !hasDone || running;
     }
   );
 });
 
 
-// ── Simplify button ───────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  EVENT BINDING (once only, called from initMain)
+// ══════════════════════════════════════════════════════════════
 
-btnSimplify.addEventListener("click", async () => {
-  const selected  = document.querySelector(".level-card.selected");
+function bindMainEvents() {
+  // Level card clicks
+  document.getElementById("levelGrid").addEventListener("click", e => {
+    const card = e.target.closest(".lvl-card");
+    if (card) selectLevel(card.dataset.level);
+  });
+
+  // Simplify
+  document.getElementById("btnSimplify").addEventListener("click", handleSimplify);
+
+  // Undo
+  document.getElementById("btnUndo").addEventListener("click", async () => {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tab?.id) chrome.tabs.sendMessage(tab.id, { action: "undo" });
+  });
+
+  // About — slides back to the onboarding screen
+  document.getElementById("btnAbout").addEventListener("click", showOnboard);
+}
+
+
+// ── Simplify handler ──────────────────────────────────────────
+
+async function handleSimplify() {
+  const selected  = document.querySelector(".lvl-card.sel");
   const userLevel = selected?.dataset.level || "intermediate";
 
   chrome.storage.local.set({
     araRunning:  true,
     araProgress: 0,
     araStatus:   "Sending paragraphs to the AI…",
-    araTotal: 0, araDone: 0, araHasDone: false,
-    araLevel: userLevel,
+    araTotal:    0,
+    araDone:     0,
+    araHasDone:  false,
+    araLevel:    userLevel,
   });
+
   setRunning(true);
   setProgress(0, "Starting…", "Sending paragraphs to the AI…", "running");
 
@@ -173,38 +335,50 @@ btnSimplify.addEventListener("click", async () => {
     return;
   }
 
-  // Re-inject content script in case it's not present (e.g. after extension update)
+  // Re-inject content script if it's not already present
+  // (this happens after extension updates or on first install).
   try {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
-  } catch { /* already injected — ignore */ }
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      files:  ["content.js"],
+    });
+  } catch { /* already injected — safe to ignore */ }
 
-  chrome.tabs.sendMessage(tab.id, { action: "simplify", userLevel }, res => {
-    if (chrome.runtime.lastError || res?.status === "error") {
-      const msg = chrome.runtime.lastError?.message || res?.error || "Unknown error.";
-      setProgress(0, "Error", msg, "error");
-      chrome.storage.local.set({ araRunning: false });
-      setRunning(false);
+  chrome.tabs.sendMessage(
+    tab.id,
+    { action: "simplify", userLevel },
+    res => {
+      if (chrome.runtime.lastError || res?.status === "error") {
+        const msg = chrome.runtime.lastError?.message
+                  || res?.error || "Unknown error.";
+        setProgress(0, "Error", msg, "error");
+        chrome.storage.local.set({ araRunning: false });
+        setRunning(false);
+      }
+      // Success path: content.js updates storage on each batch,
+      // and the storage.onChanged listener above updates the UI.
     }
-    // Success: content.js drives progress via storage.onChanged
-  });
-});
+  );
+}
 
 
-// ── Undo button ───────────────────────────────────────────────────────────────
-
-btnUndo.addEventListener("click", async () => {
-  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (!tab?.id) return;
-  chrome.tabs.sendMessage(tab.id, { action: "undo" });
-});
-
-
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════
+//  BOOT  (runs on every popup open)
+// ══════════════════════════════════════════════════════════════
 
 document.addEventListener("DOMContentLoaded", () => {
-  chrome.storage.local.get(
-    ["araLevel","araProgress","araStatus","araRunning","araHasDone","araTotal","araDone"],
-    restoreState
-  );
-  checkServer();
+  // Wire up the Get Started button on the onboarding screen
+  document.getElementById("btn-start").addEventListener("click", () => {
+    chrome.storage.local.set({ [ONBOARD_KEY]: true });
+    showMain(true);   // animated transition
+  });
+
+  // Decide which screen to show
+  chrome.storage.local.get([ONBOARD_KEY], result => {
+    if (result[ONBOARD_KEY]) {
+      // Returning user — skip the animation, go straight to main
+      showMain(false);
+    }
+    // New user — onboarding is the default visible state
+  });
 });

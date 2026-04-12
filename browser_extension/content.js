@@ -10,16 +10,15 @@
  *    b. Regardless of changed, inject yellow <span class="ara-word-hint"> elements
  *       for any medium-difficulty words listed in `annotations`.
  * 4. A global singleton popup (#ara-def-popup) handles hover definitions.
- *    On mouseover of any .ara-word-hint, the popup fetches /define and displays
+ *    On mouseover of .ara-word-hint, the popup fetches /define and displays
  *    the word's CEFR level + WordNet definition with a smooth fade-in animation.
  *
  * ANNOTATION INJECTION
  * ────────────────────
  * The API returns character positions relative to the flat text content of each
- * element.  annotateElement() uses a TreeWalker to locate the exact text nodes
- * those positions fall within, then rebuilds each affected text node as a
- * DocumentFragment containing the yellow spans.  This correctly handles
- * elements with mixed content (bold, links, etc.) without breaking the DOM.
+ * element. annotateElement() uses a TreeWalker to locate the exact text nodes,
+ * then rebuilds each affected text node as a DocumentFragment containing spans.
+ * This handles elements with mixed content (bold, links, etc.) without breaking DOM.
  */
 
 const API       = "http://localhost:5000";
@@ -38,7 +37,7 @@ const SKIP_ANCESTORS = new Set([
 ]);
 
 
-// ── DOM helpers ───────────────────────────────────────────────────────────────
+// ── DOM helpers ───────────────────────────────────────────────
 
 function isSkippable(el) {
   if (el.hasAttribute(DONE_ATTR)) return true;
@@ -59,22 +58,11 @@ function collectBlocks() {
 }
 
 
-// ── Annotation injection ──────────────────────────────────────────────────────
+// ── Annotation injection ──────────────────────────────────────
 
-/**
- * Wraps medium-difficulty words in yellow highlight spans.
- *
- * `annotations` is the array returned by the API — character positions
- * relative to the element's flat textContent (after trimming).
- * `trimOffset` is how many leading characters were trimmed before the
- * text was sent to the API, so we can convert back to DOM positions.
- */
 function annotateElement(el, annotations, trimOffset) {
   if (!annotations || annotations.length === 0) return;
 
-  // Build a map of text nodes to their character range in the element's
-  // full textContent.  This lets us convert an annotation's absolute
-  // position to (textNode, localStart, localEnd).
   const textNodes = [];
   let cumOffset   = 0;
 
@@ -86,8 +74,6 @@ function annotateElement(el, annotations, trimOffset) {
     cumOffset += len;
   }
 
-  // Assign each annotation to the text node it falls within, converting
-  // from API-relative positions (in stripped text) to DOM positions.
   for (const ann of annotations) {
     const absStart = ann.start + trimOffset;
     const absEnd   = ann.end   + trimOffset;
@@ -100,28 +86,25 @@ function annotateElement(el, annotations, trimOffset) {
     });
   }
 
-  // For each text node that has annotations, rebuild it as a fragment
-  // of plain text nodes and yellow span elements.
   for (const tn of textNodes) {
     if (tn.anns.length === 0) continue;
 
-    const text    = tn.node.nodeValue;
-    const parent  = tn.node.parentNode;
+    const text     = tn.node.nodeValue;
+    const parent   = tn.node.parentNode;
     const fragment = document.createDocumentFragment();
     let pos = 0;
 
-    // Sort ascending so we walk left-to-right
     for (const ann of tn.anns.sort((a, b) => a.localStart - b.localStart)) {
       if (ann.localStart > pos) {
         fragment.appendChild(document.createTextNode(text.slice(pos, ann.localStart)));
       }
       const span = document.createElement("span");
-      span.className      = "ara-word-hint";
-      span.dataset.word   = ann.word;    // surface form for display
-      span.dataset.lemma  = ann.lemma;   // base form for /define lookup
-      span.dataset.level  = ann.level;
-      span.dataset.pos    = ann.pos;
-      span.textContent    = text.slice(ann.localStart, ann.localEnd);
+      span.className     = "ara-word-hint";
+      span.dataset.word  = ann.word;
+      span.dataset.lemma = ann.lemma;
+      span.dataset.level = ann.level;
+      span.dataset.pos   = ann.pos;
+      span.textContent   = text.slice(ann.localStart, ann.localEnd);
       fragment.appendChild(span);
       pos = ann.localEnd;
     }
@@ -133,7 +116,7 @@ function annotateElement(el, annotations, trimOffset) {
 }
 
 
-// ── API helpers ───────────────────────────────────────────────────────────────
+// ── API helpers ───────────────────────────────────────────────
 
 async function rewriteBatch(paragraphs, userLevel) {
   const res = await fetch(`${API}/rewrite`, {
@@ -146,19 +129,16 @@ async function rewriteBatch(paragraphs, userLevel) {
 }
 
 
-// ── Apply a single rewrite result to its DOM element ─────────────────────────
+// ── Apply result to DOM element ───────────────────────────────
 
 function applyResult(el, result) {
-  const rawText     = el.textContent || "";
-  const trimOffset  = rawText.indexOf(rawText.trim());  // leading whitespace count
+  const rawText    = el.textContent || "";
+  const trimOffset = rawText.indexOf(rawText.trim());
 
   el.setAttribute(DONE_ATTR, "true");
 
   if (result.changed) {
-    // Preserve the original HTML for undo / hover tooltip
     el.setAttribute(ORIG_ATTR, el.innerHTML);
-    // Replace visible content with the simplified text.
-    // Using textContent (not innerHTML) prevents XSS from model output.
     el.textContent = result.rewritten;
     el.classList.add("ara-modified");
     const preview = result.original.length > 160
@@ -167,16 +147,11 @@ function applyResult(el, result) {
     el.title = `Original: ${preview}`;
   }
 
-  // Annotate medium-difficulty words in whichever text is now displayed.
-  // For changed paragraphs, annotations are relative to result.rewritten
-  // (which is now el.textContent).  For unchanged ones, they're relative
-  // to the original stripped text.  Either way, trimOffset corrects for
-  // leading whitespace in the DOM text node.
   annotateElement(el, result.annotations, result.changed ? 0 : trimOffset);
 }
 
 
-// ── Progress reporting ────────────────────────────────────────────────────────
+// ── Progress reporting ────────────────────────────────────────
 
 function reportProgress(done, total, extra = {}) {
   const pct = total === 0 ? 100 : Math.min(100, Math.round((done / total) * 100));
@@ -184,7 +159,7 @@ function reportProgress(done, total, extra = {}) {
 }
 
 
-// ── Main simplification flow ──────────────────────────────────────────────────
+// ── Main simplification loop ──────────────────────────────────
 
 async function runSimplification(userLevel) {
   const blocks = collectBlocks();
@@ -209,13 +184,10 @@ async function runSimplification(userLevel) {
 
   for (let i = 0; i < blocks.length; i += BATCH) {
     const batch = blocks.slice(i, i + BATCH);
-    const texts = batch.map(el => el.textContent || "");
+    const texts = batch.map(el => (el.textContent || "").trim());
 
     try {
-      const results = await rewriteBatch(
-        texts.map(t => t.trim()),
-        userLevel
-      );
+      const results = await rewriteBatch(texts, userLevel);
       results.forEach((result, j) => applyResult(batch[j], result));
     } catch (err) {
       console.warn("[ARA] Batch error:", err.message);
@@ -240,7 +212,7 @@ async function runSimplification(userLevel) {
 }
 
 
-// ── Undo ──────────────────────────────────────────────────────────────────────
+// ── Undo ──────────────────────────────────────────────────────
 
 function undoSimplification() {
   let restored = 0;
@@ -263,28 +235,31 @@ function undoSimplification() {
 }
 
 
-// ── Definition hover popup ────────────────────────────────────────────────────
+// ── Definition hover popup ────────────────────────────────────
 
-// Create the singleton popup element once per page load.
-// Guard prevents duplicate creation if the content script is somehow
-// re-injected without a full page reload.
+// Build the singleton popup once.  Guard against re-injection.
 let defPopup = document.getElementById("ara-def-popup");
 if (!defPopup) {
   defPopup = document.createElement("div");
   defPopup.id = "ara-def-popup";
+  // ara-pop-inner wraps all content so the ::before gradient bar
+  // can touch the popup's edges (if we put padding on #ara-def-popup
+  // itself, the bar would be indented).
   defPopup.innerHTML = `
-    <div class="ara-pop-word"  id="ara-pw"></div>
-    <div class="ara-pop-meta">
-      <span class="ara-level-badge" id="ara-plb"></span>
-      <span class="ara-pop-pos"     id="ara-pp"></span>
+    <div class="ara-pop-inner">
+      <span class="ara-pop-word"  id="ara-pw"></span>
+      <div class="ara-pop-meta">
+        <span class="ara-level-badge" id="ara-plb"></span>
+        <span class="ara-pop-pos"     id="ara-pp"></span>
+      </div>
+      <span class="ara-pop-def"     id="ara-pd"></span>
+      <span class="ara-pop-example" id="ara-pe"></span>
     </div>
-    <div class="ara-pop-def"     id="ara-pd"></div>
-    <div class="ara-pop-example" id="ara-pe"></div>
   `;
   document.body.appendChild(defPopup);
 }
 
-// Client-side cache so we never call /define twice for the same word+pos
+// Client-side definition cache — one /define call per (lemma, pos) pair
 const defCache  = new Map();
 let   showTimer = null;
 let   hideTimer = null;
@@ -293,7 +268,9 @@ async function fetchDefinition(lemma, pos) {
   const key = `${lemma}:${pos}`;
   if (defCache.has(key)) return defCache.get(key);
   try {
-    const r    = await fetch(`${API}/define?word=${encodeURIComponent(lemma)}&pos=${encodeURIComponent(pos)}`);
+    const r    = await fetch(
+      `${API}/define?word=${encodeURIComponent(lemma)}&pos=${encodeURIComponent(pos)}`
+    );
     const data = await r.json();
     defCache.set(key, data);
     return data;
@@ -302,22 +279,38 @@ async function fetchDefinition(lemma, pos) {
   }
 }
 
-function positionPopup(targetRect) {
-  const PW  = 280;   // popup width (matches CSS)
-  const GAP = 10;    // gap between word and popup edge
-  const vpW = window.innerWidth;
-  const vpH = window.innerHeight;
+/**
+ * Position the popup relative to the hovered word's bounding rect.
+ *
+ * FIX: The popup uses `position: fixed`, which means its coordinates are
+ * always relative to the viewport — exactly what getBoundingClientRect()
+ * returns. The old code was adding window.scrollX/scrollY, which converted
+ * those viewport-relative coords into document coords. That caused the popup
+ * to be displaced downward by the current scroll offset, sending it off-screen
+ * for anything below the first screenful of the page.
+ *
+ * Rule of thumb:
+ *   position: fixed  → use getBoundingClientRect() values directly (no scroll offset)
+ *   position: absolute → add window.scrollX / scrollY to getBoundingClientRect() values
+ */
+function positionPopup(rect) {
+  const POPUP_WIDTH = 285;
+  const GAP         = 10;
+  const vpW         = window.innerWidth;
+  const vpH         = window.innerHeight;
 
-  // Centre horizontally on the target word; clamp to viewport edges
-  let left = targetRect.left + targetRect.width / 2 - PW / 2;
-  left = Math.max(GAP, Math.min(left, vpW - PW - GAP));
+  // Centre the popup horizontally under the word, clamped to the viewport.
+  let left = rect.left + rect.width / 2 - POPUP_WIDTH / 2;
+  left = Math.max(GAP, Math.min(left, vpW - POPUP_WIDTH - GAP));
 
-  // Prefer below; fall back to above if not enough room
-  const spaceBelow = vpH - targetRect.bottom - GAP;
-  const top = spaceBelow >= 120
-    ? targetRect.bottom + GAP
-    : targetRect.top - 130 - GAP;   // 130 ≈ popup height estimate
+  // Prefer showing below the word; fall back to above if there isn't room.
+  // Use Math.max to ensure we never go above the top of the viewport.
+  const spaceBelow = vpH - rect.bottom - GAP;
+  const top = spaceBelow >= 130
+    ? rect.bottom + GAP
+    : Math.max(GAP, rect.top - 150 - GAP);
 
+  // No scroll offset needed — `fixed` positioning is already viewport-relative.
   defPopup.style.left = `${left}px`;
   defPopup.style.top  = `${top}px`;
 }
@@ -325,18 +318,19 @@ function positionPopup(targetRect) {
 function showPopup(span, data) {
   if (!data) return;
 
-  document.getElementById("ara-pw").textContent  = span.dataset.word || data.word;
-  document.getElementById("ara-pd").textContent  = data.definition || "No definition available.";
+  document.getElementById("ara-pw").textContent = span.dataset.word || data.word;
+  document.getElementById("ara-pd").textContent = data.definition   || "No definition available.";
 
   const badge = document.getElementById("ara-plb");
-  badge.textContent = data.level && data.level !== "unknown" ? data.level : "?";
+  const lvl   = (data.level && data.level !== "unknown") ? data.level : "?";
+  badge.textContent = lvl;
   badge.className   = `ara-level-badge ara-lvl-${data.level || "B1"}`;
 
   document.getElementById("ara-pp").textContent = data.pos || "";
 
   const exEl = document.getElementById("ara-pe");
   if (data.example) {
-    exEl.textContent  = `"${data.example}"`;
+    exEl.textContent   = `"${data.example}"`;
     exEl.style.display = "block";
   } else {
     exEl.style.display = "none";
@@ -350,32 +344,30 @@ function hidePopup() {
   defPopup.classList.remove("ara-pop-visible");
 }
 
-// Event delegation — one listener for all .ara-word-hint spans (present and future)
-document.addEventListener("mouseover", async (e) => {
+// Delegated listeners — one pair handles all .ara-word-hint spans
+// including ones created after the page loaded.
+document.addEventListener("mouseover", async e => {
   const span = e.target.closest(".ara-word-hint");
   if (!span) return;
-
   clearTimeout(hideTimer);
   clearTimeout(showTimer);
-
-  // 280ms delay prevents the popup from flickering when the user
-  // moves the mouse across words quickly without intending to read them
+  // 260ms delay prevents popup flicker on fast mouse movement
   showTimer = setTimeout(async () => {
-    const lemma = span.dataset.lemma || span.dataset.word || span.textContent;
-    const pos   = span.dataset.pos   || "NOUN";
-    const data  = await fetchDefinition(lemma.toLowerCase(), pos);
+    const lemma = (span.dataset.lemma || span.dataset.word || span.textContent).toLowerCase();
+    const pos   = span.dataset.pos || "NOUN";
+    const data  = await fetchDefinition(lemma, pos);
     showPopup(span, data);
-  }, 280);
+  }, 260);
 });
 
-document.addEventListener("mouseout", (e) => {
+document.addEventListener("mouseout", e => {
   if (!e.target.closest(".ara-word-hint")) return;
   clearTimeout(showTimer);
   hideTimer = setTimeout(hidePopup, 180);
 });
 
 
-// ── Message listener ──────────────────────────────────────────────────────────
+// ── Message listener ──────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
   if (msg.action === "simplify") {

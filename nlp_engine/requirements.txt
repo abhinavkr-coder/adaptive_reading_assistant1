@@ -13,3 +13,4 @@ transformers>=4.41.0
 sentencepiece>=0.2.0
 accelerate>=0.27.0
 kagglehub>=0.2.0
+nltk>=3.8.0

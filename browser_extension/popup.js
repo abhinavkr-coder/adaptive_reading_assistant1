@@ -1,240 +1,210 @@
-/**
- * popup.js — Adaptive Reading Assistant
- *
- * STATE PERSISTENCE STRATEGY
- * ──────────────────────────
- * Chrome extension popups are destroyed every time the user clicks away.
- * There is no way to prevent this. The standard solution is to keep all
- * state in chrome.storage.local (which persists across popup opens) and
- * restore it on DOMContentLoaded.
- *
- * Live progress during an active run: content.js writes araProgress to
- * storage on every batch. While the popup is open we listen for those
- * writes via chrome.storage.onChanged and update the UI immediately.
- * When the popup is reopened mid-run, we read the current value and
- * display it instantly — no stale "0%" flash.
- */
-
 "use strict";
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
-const dotEl         = document.getElementById("dotEl");
-const levelCards    = document.getElementById("levelCards");
-const progressFill  = document.getElementById("progressFill");
-const progressLabel = document.getElementById("progressLabel");
-const progressPct   = document.getElementById("progressPct");
-const statusMsg     = document.getElementById("statusMsg");
-const btnSimplify   = document.getElementById("btnSimplify");
-const btnSimplifyTx = document.getElementById("btnSimplifyText");
-const btnUndo       = document.getElementById("btnUndo");
-const modelLabel    = document.getElementById("modelLabel");
+const dotEl      = document.getElementById("dotEl");
+const levelGrid  = document.getElementById("levelGrid");
+const progFill   = document.getElementById("progFill");
+const progLabel  = document.getElementById("progLabel");
+const progPct    = document.getElementById("progPct");
+const progStatus = document.getElementById("progStatus");
+const btnSimplify= document.getElementById("btnSimplify");
+const btnTx      = document.getElementById("btnTx");
+const btnUndo    = document.getElementById("btnUndo");
+const modelLbl   = document.getElementById("modelLbl");
 
-// ── Level card selection ──────────────────────────────────────────────────────
+
+// ── Level selection ───────────────────────────────────────────────────────────
+
 function selectLevel(value) {
   document.querySelectorAll(".level-card").forEach(card => {
-    const isMatch = card.dataset.level === value;
-    card.classList.toggle("selected", isMatch);
-    card.querySelector("input[type=radio]").checked = isMatch;
+    const match = card.dataset.level === value;
+    card.classList.toggle("selected", match);
+    card.querySelector("input[type=radio]").checked = match;
   });
   chrome.storage.local.set({ araLevel: value });
 }
 
-levelCards.addEventListener("click", e => {
+levelGrid.addEventListener("click", e => {
   const card = e.target.closest(".level-card");
   if (card) selectLevel(card.dataset.level);
 });
 
+
 // ── Progress UI ───────────────────────────────────────────────────────────────
-function updateProgress(pct, label, message, isSuccess = false, isError = false) {
+
+function setProgress(pct, label, msg, tone = "neutral") {
   const clamped = Math.max(0, Math.min(100, pct));
 
-  progressFill.style.width = `${clamped}%`;
-  progressFill.classList.toggle("done", clamped === 100 && !isError);
+  progFill.style.width = `${clamped}%`;
+  progFill.classList.toggle("done",    clamped === 100 && tone !== "error");
+  progFill.classList.toggle("running", tone === "running");
 
-  progressPct.textContent = clamped > 0 ? `${clamped}%` : "—";
-  progressLabel.textContent = label || "Ready";
+  progPct.textContent   = clamped > 0 ? `${clamped}%` : "—";
+  progLabel.textContent = label || "Ready";
 
-  statusMsg.textContent = message || "";
-  statusMsg.className = "status-msg"
-    + (isSuccess ? " success" : "")
-    + (isError   ? " error"   : "");
+  progStatus.textContent = msg || "";
+  progStatus.className   = "prog-status"
+    + (tone === "ok"    ? " ok"  : "")
+    + (tone === "error" ? " err" : "");
 }
 
+
 // ── Server health check ───────────────────────────────────────────────────────
+
 async function checkServer() {
   try {
-    const res  = await fetch("http://localhost:5000/ping", { signal: AbortSignal.timeout(2500) });
+    const res  = await fetch("http://localhost:5000/ping",
+      { signal: AbortSignal.timeout(2500) });
     const data = await res.json();
-    dotEl.className = "status-dot"; // green
-    dotEl.title = "Server online";
-    // Show the model name from /ping (set in app.py)
+
+    dotEl.className = "status-dot online";
+    dotEl.title     = "Server online";
+
     if (data.model) {
       const short = data.model.includes("/")
         ? data.model.split("/").pop()
         : data.model;
-      modelLabel.textContent = `Model: ${short}`;
+      modelLbl.textContent = `Model: ${short}`;
     }
   } catch {
-    dotEl.className = "status-dot offline";
-    dotEl.title = "Server offline — start app.py";
-    modelLabel.textContent = "Model: offline";
-    statusMsg.textContent = "⚠ Server not running. Start app.py first.";
-    statusMsg.className = "status-msg error";
-    btnSimplify.disabled = true;
+    dotEl.className        = "status-dot offline";
+    dotEl.title            = "Server offline — run app.py";
+    modelLbl.textContent   = "Model: offline";
+    btnSimplify.disabled   = true;
+    setProgress(0, "Offline", "⚠ Start app.py to enable simplification.", "error");
   }
 }
 
-// ── Restore UI from stored state ──────────────────────────────────────────────
-function restoreState(state) {
-  // Restore selected level
-  const level = state.araLevel || "intermediate";
-  selectLevel(level);
 
-  // Restore progress
-  const pct     = state.araProgress ?? 0;
-  const total   = state.araTotal    ?? 0;
-  const done    = state.araDone     ?? 0;
-  const running = state.araRunning  ?? false;
-  const hasDone = state.araHasDone  ?? false;
-  const msg     = state.araStatus   ?? "";
+// ── Restore state on popup open ───────────────────────────────────────────────
+
+function restoreState(s) {
+  selectLevel(s.araLevel || "intermediate");
+
+  const pct     = s.araProgress ?? 0;
+  const running = s.araRunning  ?? false;
+  const hasDone = s.araHasDone  ?? false;
+  const msg     = s.araStatus   ?? "";
+  const total   = s.araTotal    ?? 0;
+  const done    = s.araDone     ?? 0;
 
   if (pct > 0 || running) {
-    const label = running
-      ? `Processing ${done} of ${total}…`
-      : pct === 100 ? "Complete" : "Paused";
-    updateProgress(pct, label, msg, pct === 100 && !running);
+    const label = running ? `Processing ${done} of ${total}…`
+                          : pct === 100 ? "Complete" : "Paused";
+    const tone  = running ? "running" : pct === 100 ? "ok" : "neutral";
+    setProgress(pct, label, msg, tone);
   }
 
-  // Show Undo button if there is content to restore
   btnUndo.disabled = !hasDone;
-
-  // Disable Simplify while a run is active
-  if (running) setRunningUI(true);
+  if (running) setRunning(true);
 }
 
-// ── Button states ─────────────────────────────────────────────────────────────
-function setRunningUI(running) {
+
+// ── Button state helpers ──────────────────────────────────────────────────────
+
+function setRunning(running) {
   btnSimplify.disabled = running;
   btnUndo.disabled     = running;
 
   if (running) {
-    btnSimplify.querySelector(".btn-icon").textContent = "";
-    // Add spinner
     if (!btnSimplify.querySelector(".spinner")) {
       const s = document.createElement("div");
       s.className = "spinner";
-      btnSimplify.insertBefore(s, btnSimplifyTx);
+      btnSimplify.insertBefore(s, btnTx);
     }
-    btnSimplifyTx.textContent = "Simplifying…";
+    btnSimplify.querySelector(".btn-icon").textContent = "";
+    btnTx.textContent = "Simplifying…";
   } else {
     btnSimplify.querySelector(".spinner")?.remove();
     btnSimplify.querySelector(".btn-icon").textContent = "✨";
-    btnSimplifyTx.textContent = "Simplify This Page";
+    btnTx.textContent = "Simplify This Page";
   }
 }
 
-// ── Listen for live storage changes (while popup is open) ─────────────────────
+
+// ── Live storage updates (while popup is open) ────────────────────────────────
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local") return;
 
-  const pct     = changes.araProgress?.newValue;
-  const msg     = changes.araStatus?.newValue;
-  const running = changes.araRunning?.newValue;
-  const hasDone = changes.araHasDone?.newValue;
-  const total   = changes.araTotal?.newValue;
-  const done    = changes.araDone?.newValue;
-
-  // Pull current values for anything not in this change batch
   chrome.storage.local.get(
     ["araProgress","araStatus","araRunning","araHasDone","araTotal","araDone"],
     cur => {
-      const p  = pct     ?? cur.araProgress ?? 0;
-      const m  = msg     ?? cur.araStatus   ?? "";
-      const r  = running ?? cur.araRunning  ?? false;
-      const hd = hasDone ?? cur.araHasDone  ?? false;
-      const to = total   ?? cur.araTotal    ?? 0;
-      const d  = done    ?? cur.araDone     ?? 0;
+      const pct     = changes.araProgress?.newValue ?? cur.araProgress ?? 0;
+      const msg     = changes.araStatus?.newValue   ?? cur.araStatus   ?? "";
+      const running = changes.araRunning?.newValue  ?? cur.araRunning  ?? false;
+      const hasDone = changes.araHasDone?.newValue  ?? cur.araHasDone  ?? false;
+      const total   = changes.araTotal?.newValue    ?? cur.araTotal    ?? 0;
+      const done    = changes.araDone?.newValue     ?? cur.araDone     ?? 0;
 
-      const label = r ? `Processing ${d} of ${to}…`
-                      : p === 100 ? "Complete" : "Ready";
-      updateProgress(p, label, m, p === 100 && !r);
-      setRunningUI(r);
-      btnUndo.disabled = !hd || r;
+      const label = running ? `Processing ${done} of ${total}…`
+                            : pct === 100 ? "Complete" : "Ready";
+      const tone  = running ? "running" : pct === 100 ? "ok" : "neutral";
+
+      setProgress(pct, label, msg, tone);
+      setRunning(running);
+      btnUndo.disabled = !hasDone || running;
     }
   );
 });
 
-// ── Simplify button ───────────────────────────────────────────────────────────
-btnSimplify.addEventListener("click", async () => {
-  const selectedCard = document.querySelector(".level-card.selected");
-  const userLevel    = selectedCard?.dataset.level || "intermediate";
 
-  // Reset progress in storage for a fresh run
+// ── Simplify button ───────────────────────────────────────────────────────────
+
+btnSimplify.addEventListener("click", async () => {
+  const selected  = document.querySelector(".level-card.selected");
+  const userLevel = selected?.dataset.level || "intermediate";
+
   chrome.storage.local.set({
     araRunning:  true,
     araProgress: 0,
-    araStatus:   "Starting…",
-    araTotal:    0,
-    araDone:     0,
-    araHasDone:  false,
-    araLevel:    userLevel,
+    araStatus:   "Sending paragraphs to the AI…",
+    araTotal: 0, araDone: 0, araHasDone: false,
+    araLevel: userLevel,
   });
-  setRunningUI(true);
-  updateProgress(0, "Starting…", "Sending paragraphs to the AI…");
+  setRunning(true);
+  setProgress(0, "Starting…", "Sending paragraphs to the AI…", "running");
 
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) {
-    updateProgress(0, "Error", "No active tab found.", false, true);
-    setRunningUI(false);
+    setProgress(0, "Error", "No active tab found.", "error");
+    chrome.storage.local.set({ araRunning: false });
+    setRunning(false);
     return;
   }
 
-  // Inject the content script if it isn't already there (e.g. on extension-
-  // restricted pages like the Chrome Web Store).
+  // Re-inject content script in case it's not present (e.g. after extension update)
   try {
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      files:  ["content.js"],
-    });
-  } catch {
-    // Script may already be injected — that's fine, ignore the error.
-  }
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ["content.js"] });
+  } catch { /* already injected — ignore */ }
 
-  chrome.tabs.sendMessage(tab.id, { action: "simplify", userLevel }, response => {
-    if (chrome.runtime.lastError) {
-      updateProgress(0, "Error", "Content script not ready. Reload the page.", false, true);
+  chrome.tabs.sendMessage(tab.id, { action: "simplify", userLevel }, res => {
+    if (chrome.runtime.lastError || res?.status === "error") {
+      const msg = chrome.runtime.lastError?.message || res?.error || "Unknown error.";
+      setProgress(0, "Error", msg, "error");
       chrome.storage.local.set({ araRunning: false });
-      setRunningUI(false);
-      return;
+      setRunning(false);
     }
-    // Content script will update storage on its own; we just mark not running.
-    if (response?.status === "error") {
-      updateProgress(0, "Error", response.error || "Unknown error.", false, true);
-      chrome.storage.local.set({ araRunning: false });
-      setRunningUI(false);
-    }
-    // Success path: storage.onChanged will update the UI as batches complete.
+    // Success: content.js drives progress via storage.onChanged
   });
 });
 
+
 // ── Undo button ───────────────────────────────────────────────────────────────
+
 btnUndo.addEventListener("click", async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id) return;
-
-  chrome.tabs.sendMessage(tab.id, { action: "undo" }, () => {
-    // Storage is updated by content.js; UI follows via onChanged listener.
-  });
+  chrome.tabs.sendMessage(tab.id, { action: "undo" });
 });
 
-// ── Initialise ────────────────────────────────────────────────────────────────
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
 document.addEventListener("DOMContentLoaded", () => {
-  // 1. Restore state from previous session / in-progress run
   chrome.storage.local.get(
     ["araLevel","araProgress","araStatus","araRunning","araHasDone","araTotal","araDone"],
-    state => restoreState(state)
+    restoreState
   );
-
-  // 2. Check server health (sets the dot colour)
   checkServer();
 });

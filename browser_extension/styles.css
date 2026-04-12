@@ -1,53 +1,153 @@
-/* ── Adaptive Reading Assistant — page-injected styles ──────────────────────
- *
- * .ara-modified  marks every paragraph that was rewritten by the AI.
- *   • A subtle left border and low-opacity tint signal the change without
- *     being aggressive or distracting.
- *   • Hovering darkens the tint and reveals the original text via the
- *     browser's native tooltip (set with the `title` attribute in content.js).
- *   • The transition keeps the highlight feel smooth if the user mouses over
- *     many paragraphs in quick succession.
- *
- * We deliberately avoid heavy styling (borders, backgrounds, font changes)
- * because adaptive reading should feel invisible — the reader should be
- * focusing on the content, not the tool.
- * ─────────────────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   Adaptive Reading Assistant — injected page styles
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Three visual layers:
+   1. .ara-modified      — blue left border on rewritten paragraphs
+   2. .ara-word-hint     — amber underline on medium-difficulty words
+   3. #ara-def-popup     — floating definition card (fixed position)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ── 1. Rewritten paragraphs ─────────────────────────────────────────────── */
 
 .ara-modified {
-  border-left: 2.5px solid rgba(59, 130, 246, 0.55);
-  padding-left: 8px !important;
-  background-color: rgba(59, 130, 246, 0.04);
+  border-left: 2.5px solid rgba(59, 130, 246, 0.50);
+  padding-left: 10px !important;
+  background-color: rgba(59, 130, 246, 0.03);
   border-radius: 0 4px 4px 0;
   cursor: help;
   transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .ara-modified:hover {
-  background-color: rgba(59, 130, 246, 0.10);
-  border-left-color: rgba(59, 130, 246, 0.85);
+  background-color: rgba(59, 130, 246, 0.08);
+  border-left-color: rgba(59, 130, 246, 0.80);
 }
 
-/* Headings that were simplified get a slightly different treatment —
-   the left-border would look odd on a large h1, so we use a bottom
-   underline instead. */
-h1.ara-modified,
-h2.ara-modified,
-h3.ara-modified,
-h4.ara-modified,
-h5.ara-modified,
-h6.ara-modified {
+h1.ara-modified, h2.ara-modified, h3.ara-modified,
+h4.ara-modified, h5.ara-modified, h6.ara-modified {
   border-left: none;
   padding-left: 0 !important;
   border-bottom: 2px solid rgba(59, 130, 246, 0.40);
+  padding-bottom: 3px;
   border-radius: 0;
-  padding-bottom: 2px;
 }
 
-h1.ara-modified:hover,
-h2.ara-modified:hover,
-h3.ara-modified:hover,
-h4.ara-modified:hover,
-h5.ara-modified:hover,
-h6.ara-modified:hover {
-  border-bottom-color: rgba(59, 130, 246, 0.80);
+
+/* ── 2. Medium-difficulty word highlights ────────────────────────────────── */
+
+.ara-word-hint {
+  background-color: rgba(251, 191, 36, 0.12);
+  border-bottom: 1.5px dotted rgba(251, 191, 36, 0.55);
+  border-radius: 2px;
+  cursor: help;
+  padding: 0 1px;
+  display: inline;
+  line-height: inherit;
+  transition: background-color 0.15s ease, border-bottom-color 0.15s ease;
+}
+
+.ara-word-hint:hover {
+  background-color: rgba(251, 191, 36, 0.26);
+  border-bottom-style: solid;
+  border-bottom-color: rgba(251, 191, 36, 0.85);
+}
+
+
+/* ── 3. Definition popup ─────────────────────────────────────────────────── */
+
+#ara-def-popup {
+  /* Hard reset — prevents the host page's CSS from leaking in */
+  all: initial;
+
+  position:    fixed !important;
+  z-index:     2147483647 !important;
+  width:       280px !important;
+
+  background:    #121d2e !important;
+  border:        1px solid #1e3352 !important;
+  border-radius: 12px !important;
+  padding:       14px 16px !important;
+  box-shadow:    0 20px 50px rgba(0,0,0,0.55),
+                 0 0 0 1px rgba(255,255,255,0.04) !important;
+
+  font-family:  -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  font-size:    13px !important;
+  line-height:  1.55 !important;
+  color:        #e2e8f0 !important;
+
+  /* Start invisible and slightly below target position */
+  opacity:   0 !important;
+  transform: translateY(7px) scale(0.96) !important;
+  transition: opacity 0.20s cubic-bezier(0.16,1,0.3,1),
+              transform 0.20s cubic-bezier(0.16,1,0.3,1) !important;
+
+  pointer-events: none !important;  /* don't intercept page clicks */
+}
+
+#ara-def-popup.ara-pop-visible {
+  opacity:   1 !important;
+  transform: translateY(0) scale(1) !important;
+}
+
+/* Word title */
+.ara-pop-word {
+  font-size:   16px !important;
+  font-weight: 700 !important;
+  color:       #f8fafc !important;
+  margin-bottom: 6px !important;
+  display: block !important;
+}
+
+/* Meta row: level badge + part of speech */
+.ara-pop-meta {
+  display:       flex !important;
+  align-items:   center !important;
+  gap:           8px !important;
+  margin-bottom: 10px !important;
+}
+
+/* CEFR level badge */
+.ara-level-badge {
+  display:        inline-block !important;
+  font-size:      10px !important;
+  font-weight:    700 !important;
+  letter-spacing: 0.07em !important;
+  padding:        2px 9px !important;
+  border-radius:  99px !important;
+}
+
+/* Level-specific badge colours */
+.ara-lvl-A1 { background: rgba(34,197,94,0.18)  !important; color: #4ade80 !important; }
+.ara-lvl-A2 { background: rgba(74,222,128,0.18) !important; color: #86efac !important; }
+.ara-lvl-B1 { background: rgba(251,191,36,0.20) !important; color: #fcd34d !important; }
+.ara-lvl-B2 { background: rgba(249,115,22,0.20) !important; color: #fb923c !important; }
+.ara-lvl-C1 { background: rgba(239,68,68,0.20)  !important; color: #f87171 !important; }
+.ara-lvl-C2 { background: rgba(185,28,28,0.22)  !important; color: #fca5a5 !important; }
+
+/* Part of speech label */
+.ara-pop-pos {
+  font-size:   11px !important;
+  color:       #64748b !important;
+  font-style:  italic !important;
+  display:     block !important;
+}
+
+/* Definition text */
+.ara-pop-def {
+  color:         #cbd5e1 !important;
+  margin-bottom: 9px !important;
+  display:       block !important;
+}
+
+/* Example sentence */
+.ara-pop-example {
+  font-style:   italic !important;
+  color:        #64748b !important;
+  font-size:    11.5px !important;
+  border-left:  2px solid #1e3352 !important;
+  padding-left: 9px !important;
+  margin-top:   2px !important;
+  display:      block !important;
 }

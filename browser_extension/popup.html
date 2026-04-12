@@ -4,149 +4,191 @@
   <meta charset="UTF-8" />
   <title>Adaptive Reader</title>
   <style>
-    /* ── Reset & base ────────────────────────────────────────────────────── */
+    /* ── Reset ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       width: 320px;
-      background: #0f1117;
+      background: #08101c;
       color: #e2e8f0;
       overflow: hidden;
       user-select: none;
     }
 
-    /* ── Header ──────────────────────────────────────────────────────────── */
-    .header {
-      background: linear-gradient(135deg, #1e3a5f 0%, #0f2040 100%);
-      padding: 18px 20px 16px;
+    /* ── Header ── */
+    .hdr {
+      padding: 16px 18px 14px;
+      background: linear-gradient(135deg, #0f1f3d 0%, #08101c 100%);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
       display: flex;
       align-items: center;
       gap: 12px;
-      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
-    .header-logo {
-      font-size: 28px;
+    .hdr-logo {
+      font-size: 30px;
       line-height: 1;
-      filter: drop-shadow(0 2px 6px rgba(96,165,250,0.5));
+      filter: drop-shadow(0 0 8px rgba(99,179,237,0.5));
     }
-    .header-text { flex: 1; }
-    .header-title {
+    .hdr-text { flex: 1; }
+    .hdr-title {
       font-size: 15px;
       font-weight: 700;
-      color: #e2e8f0;
+      color: #f1f5f9;
       letter-spacing: 0.02em;
     }
-    .header-subtitle {
-      font-size: 11px;
-      color: #64748b;
+    .hdr-sub {
+      font-size: 10.5px;
+      color: #475569;
       margin-top: 2px;
     }
     .status-dot {
-      width: 8px; height: 8px;
+      width: 9px; height: 9px;
       border-radius: 50%;
-      background: #22c55e;
-      box-shadow: 0 0 6px #22c55e;
       flex-shrink: 0;
+      transition: background 0.3s, box-shadow 0.3s;
     }
-    .status-dot.offline { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
-    .status-dot.loading { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; animation: pulse 1.2s infinite; }
-
-    @keyframes pulse {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.3; }
+    .status-dot.online  { background:#10b981; box-shadow: 0 0 7px #10b981; }
+    .status-dot.offline { background:#ef4444; box-shadow: 0 0 7px #ef4444; }
+    .status-dot.loading {
+      background:#f59e0b; box-shadow: 0 0 7px #f59e0b;
+      animation: blink 1.2s infinite;
     }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
 
-    /* ── Body ────────────────────────────────────────────────────────────── */
-    .body { padding: 18px 20px; display: flex; flex-direction: column; gap: 16px; }
+    /* ── Body ── */
+    .body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
 
-    /* ── Level selector ──────────────────────────────────────────────────── */
-    .section-label {
+    /* ── Section label ── */
+    .sec-label {
       font-size: 10px;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
-      color: #475569;
-      margin-bottom: 8px;
+      letter-spacing: 0.10em;
+      color: #334155;
+      margin-bottom: 9px;
     }
 
-    .level-cards {
+    /* ── Level cards ── */
+    .level-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 8px;
     }
 
     .level-card {
+      position: relative;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 4px;
-      padding: 10px 6px;
-      background: #1e2535;
-      border: 1.5px solid #2a3347;
-      border-radius: 10px;
+      gap: 5px;
+      padding: 11px 6px 10px;
+      background: #0f1a2e;
+      border: 1.5px solid #1a2d4a;
+      border-radius: 11px;
       cursor: pointer;
-      transition: all 0.18s ease;
+      transition: all 0.2s ease;
+      overflow: hidden;
     }
-    .level-card:hover { background: #243050; border-color: #3b4f73; }
-    .level-card.selected {
-      background: rgba(59,130,246,0.15);
-      border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
-    }
-    .level-card input[type="radio"] { display: none; }
-    .level-icon { font-size: 20px; line-height: 1; }
-    .level-name {
-      font-size: 11px;
-      font-weight: 600;
-      color: #cbd5e1;
-    }
-    .level-desc { font-size: 9px; color: #475569; text-align: center; }
-    .level-card.selected .level-name { color: #93c5fd; }
-
-    /* ── Progress area ───────────────────────────────────────────────────── */
-    .progress-wrap {
-      background: #1a2236;
-      border: 1px solid #2a3347;
+    .level-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
       border-radius: 10px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .level-card:hover { border-color: #2a4060; background: #122040; }
+    .level-card input[type="radio"] { display: none; }
+
+    /* Level-specific accent colours */
+    .level-card[data-level="beginner"].selected {
+      border-color: transparent;
+      background:
+        linear-gradient(#0d1e32, #0d1e32) padding-box,
+        linear-gradient(135deg, #10b981, #059669) border-box;
+      box-shadow: 0 0 18px rgba(16,185,129,0.18);
+    }
+    .level-card[data-level="intermediate"].selected {
+      border-color: transparent;
+      background:
+        linear-gradient(#0d1e32, #0d1e32) padding-box,
+        linear-gradient(135deg, #3b82f6, #2563eb) border-box;
+      box-shadow: 0 0 18px rgba(59,130,246,0.18);
+    }
+    .level-card[data-level="advanced"].selected {
+      border-color: transparent;
+      background:
+        linear-gradient(#0d1e32, #0d1e32) padding-box,
+        linear-gradient(135deg, #8b5cf6, #7c3aed) border-box;
+      box-shadow: 0 0 18px rgba(139,92,246,0.18);
+    }
+
+    .level-icon { font-size: 22px; line-height: 1; }
+    .level-name {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: #94a3b8;
+      transition: color 0.2s;
+    }
+    .level-desc { font-size: 9px; color: #334155; text-align: center; line-height: 1.3; }
+
+    .level-card[data-level="beginner"].selected     .level-name { color: #34d399; }
+    .level-card[data-level="intermediate"].selected .level-name { color: #60a5fa; }
+    .level-card[data-level="advanced"].selected     .level-name { color: #a78bfa; }
+
+    /* ── Progress block ── */
+    .prog-block {
+      background: #0c1628;
+      border: 1px solid #1a2d4a;
+      border-radius: 11px;
       padding: 12px 14px;
     }
-
-    .progress-header {
+    .prog-row {
       display: flex;
       justify-content: space-between;
-      align-items: center;
+      align-items: baseline;
       margin-bottom: 8px;
     }
-    .progress-label { font-size: 11px; color: #94a3b8; }
-    .progress-pct   { font-size: 13px; font-weight: 700; color: #60a5fa; }
+    .prog-label { font-size: 11px; color: #64748b; }
+    .prog-pct   { font-size: 14px; font-weight: 700; color: #60a5fa; }
 
-    .progress-track {
-      height: 6px;
-      background: #2a3347;
+    .prog-track {
+      height: 5px;
+      background: #1a2d4a;
       border-radius: 99px;
       overflow: hidden;
     }
-    .progress-fill {
+    .prog-fill {
       height: 100%;
       border-radius: 99px;
-      background: linear-gradient(90deg, #3b82f6, #60a5fa);
-      transition: width 0.4s ease;
+      background: linear-gradient(90deg, #2563eb, #60a5fa);
+      transition: width 0.45s cubic-bezier(0.4,0,0.2,1);
       width: 0%;
+      position: relative;
     }
-    .progress-fill.done { background: linear-gradient(90deg, #10b981, #34d399); }
+    .prog-fill.running::after {
+      content: "";
+      position: absolute;
+      top: 0; left: -60%;
+      width: 60%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      animation: shimmer 1.4s infinite;
+    }
+    @keyframes shimmer { to { left: 160%; } }
+    .prog-fill.done { background: linear-gradient(90deg, #059669, #34d399); }
 
-    .status-msg {
+    .prog-status {
       font-size: 10.5px;
-      color: #64748b;
+      color: #475569;
       margin-top: 7px;
-      min-height: 14px;
+      min-height: 15px;
       line-height: 1.4;
     }
-    .status-msg.success { color: #4ade80; }
-    .status-msg.error   { color: #f87171; }
+    .prog-status.ok  { color: #4ade80; }
+    .prog-status.err { color: #f87171; }
 
-    /* ── Buttons ─────────────────────────────────────────────────────────── */
+    /* ── Buttons ── */
     .btn {
       width: 100%;
       padding: 11px 16px;
@@ -158,124 +200,145 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 7px;
+      gap: 8px;
       transition: all 0.18s ease;
       letter-spacing: 0.01em;
     }
-
     .btn-primary {
-      background: linear-gradient(135deg, #2563eb, #3b82f6);
+      background: linear-gradient(135deg, #1d4ed8, #3b82f6);
       color: #fff;
-      box-shadow: 0 2px 12px rgba(37,99,235,0.35);
+      box-shadow: 0 3px 14px rgba(37,99,235,0.35);
     }
     .btn-primary:hover:not(:disabled) {
-      background: linear-gradient(135deg, #1d4ed8, #2563eb);
-      box-shadow: 0 4px 16px rgba(37,99,235,0.5);
+      background: linear-gradient(135deg, #1e40af, #2563eb);
+      box-shadow: 0 5px 18px rgba(37,99,235,0.5);
       transform: translateY(-1px);
     }
+    .btn-primary:active:not(:disabled) { transform: translateY(0); }
     .btn-primary:disabled {
-      background: linear-gradient(135deg, #1e3a6e, #2a4d8a);
-      color: #64748b;
+      background: linear-gradient(135deg, #1a3060, #1e3a70);
+      color: #3d5a8a;
       cursor: not-allowed;
       box-shadow: none;
-      transform: none;
     }
 
     .btn-secondary {
-      background: #1e2535;
-      color: #94a3b8;
-      border: 1.5px solid #2a3347;
+      background: #0f1a2e;
+      color: #64748b;
+      border: 1.5px solid #1a2d4a;
     }
     .btn-secondary:hover:not(:disabled) {
-      background: #243050;
-      color: #cbd5e1;
-      border-color: #3b4f73;
+      background: #132035;
+      color: #94a3b8;
+      border-color: #2a4060;
     }
-    .btn-secondary:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
+    .btn-secondary:disabled { opacity: 0.35; cursor: not-allowed; }
 
     .btn-icon { font-size: 15px; }
 
-    /* ── Spinner inside button ───────────────────────────────────────────── */
     .spinner {
       width: 14px; height: 14px;
-      border: 2px solid rgba(255,255,255,0.2);
-      border-top-color: #fff;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-top-color: #93c5fd;
       border-radius: 50%;
-      animation: spin 0.7s linear infinite;
+      animation: spin 0.65s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── Footer ──────────────────────────────────────────────────────────── */
-    .footer {
-      padding: 10px 20px;
-      border-top: 1px solid #1a2236;
+    /* ── Footer ── */
+    .ftr {
+      padding: 9px 18px;
+      border-top: 1px solid #0e1c30;
       display: flex;
-      align-items: center;
       justify-content: space-between;
+      align-items: center;
     }
-    .server-info { font-size: 10px; color: #334155; }
-    .server-info span { color: #475569; }
+    .ftr-item { font-size: 10px; color: #1e3352; }
+    .ftr-item span { color: #334155; }
+
+    /* ── Hover hint ── */
+    .hint-bar {
+      background: rgba(251,191,36,0.07);
+      border: 1px solid rgba(251,191,36,0.15);
+      border-radius: 7px;
+      padding: 7px 10px;
+      font-size: 10.5px;
+      color: #78716c;
+      line-height: 1.4;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .hint-icon { flex-shrink: 0; margin-top: 1px; }
   </style>
 </head>
 <body>
 
-  <!-- ── Header ── -->
-  <div class="header">
-    <div class="header-logo">📖</div>
-    <div class="header-text">
-      <div class="header-title">Adaptive Reader</div>
-      <div class="header-subtitle">AI-powered text simplification</div>
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-logo">📖</div>
+    <div class="hdr-text">
+      <div class="hdr-title">Adaptive Reader</div>
+      <div class="hdr-sub">AI vocabulary simplifier</div>
     </div>
     <div class="status-dot loading" id="dotEl" title="Checking server…"></div>
   </div>
 
-  <!-- ── Body ── -->
   <div class="body">
 
-    <!-- Reading level selector -->
+    <!-- Reading level -->
     <div>
-      <div class="section-label">Reading Level</div>
-      <div class="level-cards" id="levelCards">
+      <div class="sec-label">Reading Level</div>
+      <div class="level-grid" id="levelGrid">
+
         <label class="level-card" data-level="beginner">
           <input type="radio" name="level" value="beginner" />
           <div class="level-icon">🌱</div>
           <div class="level-name">Beginner</div>
-          <div class="level-desc">Simple words &amp; short sentences</div>
+          <div class="level-desc">A1 – B1 vocabulary</div>
         </label>
+
         <label class="level-card" data-level="intermediate">
           <input type="radio" name="level" value="intermediate" />
-          <div class="level-icon">📚</div>
+          <div class="level-icon">📘</div>
           <div class="level-name">Intermediate</div>
-          <div class="level-desc">Clear &amp; readable</div>
+          <div class="level-desc">A2 – B2 vocabulary</div>
         </label>
+
         <label class="level-card" data-level="advanced">
           <input type="radio" name="level" value="advanced" />
           <div class="level-icon">🎓</div>
           <div class="level-name">Advanced</div>
-          <div class="level-desc">Flow improvements only</div>
+          <div class="level-desc">B2 – C1 vocabulary</div>
         </label>
+
       </div>
     </div>
 
-    <!-- Progress display -->
-    <div class="progress-wrap">
-      <div class="progress-header">
-        <span class="progress-label" id="progressLabel">Ready</span>
-        <span class="progress-pct"   id="progressPct">—</span>
+    <!-- Progress -->
+    <div class="prog-block">
+      <div class="prog-row">
+        <span class="prog-label" id="progLabel">Ready</span>
+        <span class="prog-pct"   id="progPct">—</span>
       </div>
-      <div class="progress-track">
-        <div class="progress-fill" id="progressFill"></div>
+      <div class="prog-track">
+        <div class="prog-fill" id="progFill"></div>
       </div>
-      <div class="status-msg" id="statusMsg">Choose a level and click Simplify.</div>
+      <div class="prog-status" id="progStatus">
+        Choose a level and click Simplify.
+      </div>
     </div>
 
-    <!-- Action buttons -->
+    <!-- Hover hint -->
+    <div class="hint-bar">
+      <span class="hint-icon">🟡</span>
+      <span>Yellow-underlined words have hover definitions with CEFR difficulty levels.</span>
+    </div>
+
+    <!-- Buttons -->
     <button class="btn btn-primary" id="btnSimplify">
       <span class="btn-icon">✨</span>
-      <span id="btnSimplifyText">Simplify This Page</span>
+      <span id="btnTx">Simplify This Page</span>
     </button>
 
     <button class="btn btn-secondary" id="btnUndo" disabled>
@@ -284,10 +347,10 @@
 
   </div>
 
-  <!-- ── Footer ── -->
-  <div class="footer">
-    <div class="server-info">Server: <span>localhost:5000</span></div>
-    <div class="server-info" id="modelLabel">Model: checking…</div>
+  <!-- Footer -->
+  <div class="ftr">
+    <div class="ftr-item">Server: <span>localhost:5000</span></div>
+    <div class="ftr-item" id="modelLbl">Model: checking…</div>
   </div>
 
   <script src="popup.js"></script>
